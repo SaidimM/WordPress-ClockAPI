@@ -168,10 +168,10 @@ install_docker() {
         log_info "Installing Docker..."
 
         if [ "$USE_CHINA_MIRRORS" = true ]; then
-            # Use Aliyun mirror for Docker installation in China
-            log_info "Using Aliyun mirror for Docker installation..."
-            curl -fsSL https://mirrors.aliyun.com/docker-ce/linux/ubuntu/gpg | sudo apt-key add -
-            sudo add-apt-repository "deb [arch=amd64] https://mirrors.aliyun.com/docker-ce/linux/ubuntu $(lsb_release -cs) stable"
+            # Use Tencent Cloud mirror for Docker installation in China
+            log_info "Using Tencent Cloud mirror for Docker installation..."
+            curl -fsSL https://mirrors.cloud.tencent.com/docker-ce/linux/ubuntu/gpg | sudo apt-key add -
+            sudo add-apt-repository "deb [arch=amd64] https://mirrors.cloud.tencent.com/docker-ce/linux/ubuntu $(lsb_release -cs) stable"
             sudo apt-get update
             sudo apt-get install -y docker-ce docker-ce-cli containerd.io
         else

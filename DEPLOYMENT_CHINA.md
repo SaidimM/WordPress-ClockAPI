@@ -14,7 +14,7 @@
    - 腾讯云镜像: `https://mirror.ccs.tencentyun.com`
 
 2. **Docker 安装源**
-   - 阿里云镜像: `https://mirrors.aliyun.com/docker-ce/`
+   - 腾讯云镜像: `https://mirrors.cloud.tencent.com/docker-ce/`
 
 3. **Docker Compose**
    - DaoCloud 镜像: `https://get.daocloud.io/docker/compose/`
@@ -190,9 +190,9 @@ chmod +x deploy.sh
 如果 Docker 安装失败，手动安装：
 
 ```bash
-# 配置阿里云镜像源
-curl -fsSL https://mirrors.aliyun.com/docker-ce/linux/ubuntu/gpg | sudo apt-key add -
-sudo add-apt-repository "deb [arch=amd64] https://mirrors.aliyun.com/docker-ce/linux/ubuntu $(lsb_release -cs) stable"
+# 配置腾讯云镜像源
+curl -fsSL https://mirrors.cloud.tencent.com/docker-ce/linux/ubuntu/gpg | sudo apt-key add -
+sudo add-apt-repository "deb [arch=amd64] https://mirrors.cloud.tencent.com/docker-ce/linux/ubuntu $(lsb_release -cs) stable"
 
 # 安装 Docker
 sudo apt-get update
