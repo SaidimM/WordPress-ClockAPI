@@ -3,11 +3,31 @@ FROM node:18-alpine AS builder
 
 WORKDIR /app
 
+# Use Chinese mirrors for Alpine packages (faster in China)
+RUN sed -i 's/dl-cdn.alpinelinux.org/mirrors.cloud.tencent.com/g' /etc/apk/repositories
+
+# Install build dependencies for native modules (better-sqlite3)
+# These are only needed during build, not in final image
+RUN apk add --no-cache \
+    python3 \
+    make \
+    g++ && \
+    npm install -g node-gyp
+
 # Copy package files
 COPY package*.json ./
 
-# Install dependencies
-RUN npm ci --only=production
+# Configure npm for China + node-gyp to use Chinese mirror for Node headers
+ENV npm_config_registry=https://registry.npmmirror.com \
+    NODEJS_ORG_MIRROR=https://npmmirror.com/mirrors/node \
+    NVM_NODEJS_ORG_MIRROR=https://npmmirror.com/mirrors/node
+
+# Download all dependencies without running install scripts (skip package-lock for speed in China)
+RUN npm install --production --ignore-scripts --no-package-lock --loglevel=error
+
+# Manually build better-sqlite3 using node-gyp with Chinese mirror
+RUN cd node_modules/better-sqlite3 && \
+    node-gyp rebuild --dist-url=https://npmmirror.com/mirrors/node
 
 # Production stage
 FROM node:18-alpine

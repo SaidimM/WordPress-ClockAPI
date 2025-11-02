@@ -1,89 +1,105 @@
-version: '3.7'
 
 services:
-  db:
-    image: mysql:5.7
+  mysql:
+    image: mysql:8.0
+    container_name: wordpress-mysql
     restart: always
     environment:
-      MYSQL_DATABASE: wpdb
-      MYSQL_USER: saidim
-      MYSQL_PASSWORD: unpixs
-      MYSQL_ROOT_PASSWORD: Unpixs2720
+      MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD}
+      MYSQL_DATABASE: ${MYSQL_DATABASE}
+      MYSQL_USER: ${MYSQL_USER}
+      MYSQL_PASSWORD: ${MYSQL_PASSWORD}
     volumes:
-      - ./mysql:/var/lib/mysql
+      - mysql_data:/var/lib/mysql
     networks:
       - wordpress-network
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "-u", "root", "-p${MYSQL_ROOT_PASSWORD}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
 
   wordpress:
-    image: wordpress:latest
+    image: wordpress:6.4-php8.2-fpm
+    container_name: wordpress-app
     restart: always
     environment:
-      WORDPRESS_DB_HOST: db:3306
-      WORDPRESS_DB_USER: saidim
-      WORDPRESS_DB_PASSWORD: unpixs
-      WORDPRESS_DB_NAME: wpdb
+      WORDPRESS_DB_HOST: ${WORDPRESS_DB_HOST}
+      WORDPRESS_DB_USER: ${WORDPRESS_DB_USER}
+      WORDPRESS_DB_PASSWORD: ${WORDPRESS_DB_PASSWORD}
+      WORDPRESS_DB_NAME: ${WORDPRESS_DB_NAME}
     volumes:
-      - ./wordpress:/var/www/html
+      - wordpress_data:/var/www/html
+      - ./wordpress-custom/plugins:/var/www/html/wp-content/plugins/custom
+      - ./wordpress-custom/themes:/var/www/html/wp-content/themes/custom
     depends_on:
-      - db
+      mysql:
+        condition: service_healthy
     networks:
       - wordpress-network
 
   nginx:
     image: nginx:latest
+    container_name: wordpress-nginx
     restart: always
     ports:
       - "80:80"
       - "443:443"
     volumes:
-      - ./nginx/conf.d:/etc/nginx/conf.d
-      - ./wordpress:/var/www/html:ro
-      - /etc/ssl/saidim.com:/etc/ssl/saidim.com:ro
+      - ./nginx/conf.d:/etc/nginx/conf.d:ro
+      - wordpress_data:/var/www/html:ro
+      - ./certs:/etc/ssl/certs:ro
       - ./clock-api/data/images:/var/cache/clock-api/images:ro
     depends_on:
-      - wordpress
+      wordpress:
+        condition: service_started
+      clock-api:
+        condition: service_healthy
     networks:
       - wordpress-network
 
   cert-updater:
     build: ./cert-updater
+    container_name: wordpress-cert-updater
     restart: always
     environment:
-      TENCENT_SECRET_ID: ${TENCENT_SECRET_ID}
-      TENCENT_SECRET_KEY: ${TENCENT_SECRET_KEY}
-      DOMAIN: "saidim.com"
+      TENCENT_SECRET_ID: ${TENCENT_SECRET_ID:-}
+      TENCENT_SECRET_KEY: ${TENCENT_SECRET_KEY:-}
+      DOMAIN: ${DOMAIN_NAME:-example.com}
       SSL_DEST_DIR: "/certs"
-      HOST_SSL_DIR: "/host-ssl"
       CERT_CHECK_INTERVAL_DAYS: ${CERT_CHECK_INTERVAL_DAYS:-30}
       CERT_UPDATE_THRESHOLD_DAYS: ${CERT_UPDATE_THRESHOLD_DAYS:-60}
     volumes:
       - ./certs:/certs
-      - /etc/ssl/saidim.com:/host-ssl
       - /var/run/docker.sock:/var/run/docker.sock:ro
     depends_on:
       - nginx
     networks:
       - wordpress-network
+    profiles:
+      - tencent-ssl
 
   clock-api:
     build: ./clock-api
+    container_name: wordpress-clock-api
     restart: always
     environment:
-      PORT: 3001
-      NODE_ENV: production
+      PORT: ${CLOCK_API_PORT:-3000}
+      NODE_ENV: ${NODE_ENV:-production}
       UNSPLASH_ACCESS_KEY: ${UNSPLASH_ACCESS_KEY}
-      API_KEY: ${CLOCK_API_KEY:-clock_api_secure_key_2025}
+      UNSPLASH_SECRET_KEY: ${UNSPLASH_SECRET_KEY}
+      API_SECRET_KEY: ${API_SECRET_KEY}
       CACHE_TTL: 3600
       RATE_LIMIT_WINDOW_MS: 900000
       RATE_LIMIT_MAX_REQUESTS: 100
       DATABASE_PATH: /app/data/clock.db
       ALLOWED_ORIGINS: "*"
     volumes:
-      - ./clock-api/data:/app/data
+      - clock_api_data:/app/data
     networks:
       - wordpress-network
     healthcheck:
-      test: ["CMD", "node", "-e", "require('http').get('http://localhost:3001/api/v1/health', (r) => process.exit(r.statusCode === 200 ? 0 : 1))"]
+      test: ["CMD", "node", "-e", "require('http').get('http://localhost:${CLOCK_API_PORT:-3000}/api/v1/health', (r) => process.exit(r.statusCode === 200 ? 0 : 1))"]
       interval: 30s
       timeout: 10s
       retries: 3
@@ -94,5 +110,9 @@ networks:
     driver: bridge
 
 volumes:
-  mysql:
-  wordpress:
+  mysql_data:
+    driver: local
+  wordpress_data:
+    driver: local
+  clock_api_data:
+    driver: local
