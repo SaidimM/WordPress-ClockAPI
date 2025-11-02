@@ -18,6 +18,14 @@ A Docker-based WordPress installation integrated with a custom Node.js Clock API
 - Domain name pointed to your server
 - SSL certificates (Let's Encrypt recommended)
 
+### 🇨🇳 Deploying in China?
+
+If deploying on **Tencent Cloud** or other China mainland servers, see the **[China Deployment Guide (中文)](./DEPLOYMENT_CHINA.md)** for:
+- Optimized Chinese mirrors (Docker, npm, WordPress)
+- Tencent Cloud specific instructions
+- Faster downloads and installation
+- Chinese language support
+
 ## 🚀 Deployment Guide
 
 ### Quick Deploy (Automated - Recommended)

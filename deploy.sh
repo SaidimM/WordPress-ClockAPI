@@ -45,12 +45,37 @@ fi
 
 print_header "WordPress + Clock API Deployment"
 
+# Detect if running in China
+detect_china_region() {
+    # Check if we're in China by testing connectivity to common Chinese services
+    if curl -s --connect-timeout 3 --max-time 5 https://www.baidu.com > /dev/null 2>&1; then
+        if ! curl -s --connect-timeout 3 --max-time 5 https://www.google.com > /dev/null 2>&1; then
+            return 0  # Likely in China
+        fi
+    fi
+    return 1  # Not in China
+}
+
 # Interactive configuration
 configure_deployment() {
     print_header "Step 1: Configuration"
 
     echo "Let's configure your deployment..."
     echo ""
+
+    # Detect region
+    if detect_china_region; then
+        log_info "Detected China mainland region - will use Chinese mirrors"
+        USE_CHINA_MIRRORS=true
+    else
+        read -p "Are you deploying in China mainland? (y/N): " CHINA_DEPLOY
+        if [[ "$CHINA_DEPLOY" =~ ^[Yy]$ ]]; then
+            USE_CHINA_MIRRORS=true
+            log_info "Will use Chinese mirrors for faster downloads"
+        else
+            USE_CHINA_MIRRORS=false
+        fi
+    fi
 
     # Domain configuration
     read -p "Enter your domain name (e.g., example.com): " DOMAIN_NAME
@@ -101,6 +126,37 @@ configure_deployment() {
     log_success "Configuration complete!"
 }
 
+# Configure Docker mirrors for China
+configure_docker_mirror() {
+    if [ "$USE_CHINA_MIRRORS" = true ]; then
+        log_info "Configuring Docker registry mirrors for China..."
+
+        sudo mkdir -p /etc/docker
+
+        cat | sudo tee /etc/docker/daemon.json > /dev/null <<EOF
+{
+  "registry-mirrors": [
+    "https://docker.mirrors.ustc.edu.cn",
+    "https://hub-mirror.c.163.com",
+    "https://mirror.ccs.tencentyun.com"
+  ],
+  "log-driver": "json-file",
+  "log-opts": {
+    "max-size": "10m",
+    "max-file": "3"
+  }
+}
+EOF
+
+        # Restart Docker to apply changes
+        if command -v docker &> /dev/null; then
+            sudo systemctl daemon-reload
+            sudo systemctl restart docker
+            log_success "Docker mirrors configured"
+        fi
+    fi
+}
+
 # Install Docker
 install_docker() {
     print_header "Step 2: Installing Docker"
@@ -110,12 +166,27 @@ install_docker() {
         docker --version
     else
         log_info "Installing Docker..."
-        curl -fsSL https://get.docker.com -o get-docker.sh
-        sudo sh get-docker.sh
+
+        if [ "$USE_CHINA_MIRRORS" = true ]; then
+            # Use Aliyun mirror for Docker installation in China
+            log_info "Using Aliyun mirror for Docker installation..."
+            curl -fsSL https://mirrors.aliyun.com/docker-ce/linux/ubuntu/gpg | sudo apt-key add -
+            sudo add-apt-repository "deb [arch=amd64] https://mirrors.aliyun.com/docker-ce/linux/ubuntu $(lsb_release -cs) stable"
+            sudo apt-get update
+            sudo apt-get install -y docker-ce docker-ce-cli containerd.io
+        else
+            # Use official Docker installation script
+            curl -fsSL https://get.docker.com -o get-docker.sh
+            sudo sh get-docker.sh
+            rm get-docker.sh
+        fi
+
         sudo usermod -aG docker $USER
-        rm get-docker.sh
         log_success "Docker installed successfully"
     fi
+
+    # Configure mirrors after installation
+    configure_docker_mirror
 }
 
 # Install Docker Compose
@@ -127,7 +198,16 @@ install_docker_compose() {
         docker-compose --version
     else
         log_info "Installing Docker Compose..."
-        sudo curl -L "https://github.com/docker/compose/releases/latest/download/docker-compose-$(uname -s)-$(uname -m)" -o /usr/local/bin/docker-compose
+
+        if [ "$USE_CHINA_MIRRORS" = true ]; then
+            # Use DaoCloud mirror for Docker Compose in China
+            log_info "Using Chinese mirror for Docker Compose..."
+            sudo curl -L "https://get.daocloud.io/docker/compose/releases/download/v2.24.0/docker-compose-$(uname -s)-$(uname -m)" -o /usr/local/bin/docker-compose
+        else
+            # Use official GitHub release
+            sudo curl -L "https://github.com/docker/compose/releases/latest/download/docker-compose-$(uname -s)-$(uname -m)" -o /usr/local/bin/docker-compose
+        fi
+
         sudo chmod +x /usr/local/bin/docker-compose
         log_success "Docker Compose installed successfully"
     fi
@@ -183,9 +263,15 @@ download_wordpress() {
         wp core download --skip-content
     else
         # Fallback to direct download
-        wget -q https://wordpress.org/latest.tar.gz
-        tar -xzf latest.tar.gz --strip-components=1
-        rm latest.tar.gz
+        if [ "$USE_CHINA_MIRRORS" = true ]; then
+            log_info "Using Chinese mirror for WordPress..."
+            wget -q https://cn.wordpress.org/latest-zh_CN.tar.gz -O wordpress.tar.gz
+        else
+            wget -q https://wordpress.org/latest.tar.gz -O wordpress.tar.gz
+        fi
+
+        tar -xzf wordpress.tar.gz --strip-components=1
+        rm wordpress.tar.gz
     fi
 
     cd ..
@@ -257,9 +343,40 @@ update_nginx_config() {
     log_success "Nginx configuration updated"
 }
 
+# Configure npm mirror for China
+configure_npm_mirror() {
+    if [ "$USE_CHINA_MIRRORS" = true ]; then
+        log_info "Configuring npm to use Taobao mirror..."
+        npm config set registry https://registry.npmmirror.com
+        log_success "npm mirror configured"
+    fi
+}
+
 # Install Node.js dependencies
 install_node_dependencies() {
     print_header "Step 8: Installing Node.js Dependencies"
+
+    # Check if Node.js is installed
+    if ! command -v node &> /dev/null; then
+        log_warning "Node.js is not installed. Installing Node.js..."
+
+        if [ "$USE_CHINA_MIRRORS" = true ]; then
+            # Use Tencent mirror for Node.js in China
+            log_info "Using Tencent mirror for Node.js..."
+            curl -fsSL https://mirrors.cloud.tencent.com/nodejs-release/v18.19.0/node-v18.19.0-linux-x64.tar.xz -o node.tar.xz
+            sudo tar -xJf node.tar.xz -C /usr/local --strip-components=1
+            rm node.tar.xz
+        else
+            # Use NodeSource for standard installation
+            curl -fsSL https://deb.nodesource.com/setup_18.x | sudo -E bash -
+            sudo apt-get install -y nodejs
+        fi
+
+        log_success "Node.js installed successfully"
+    fi
+
+    # Configure npm mirror
+    configure_npm_mirror
 
     if [ ! -d "clock-api/node_modules" ]; then
         log_info "Installing npm packages..."
