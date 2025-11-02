@@ -537,10 +537,9 @@ set_permissions() {
     sudo chown -R www-data:www-data wordpress/ 2>/dev/null || chown -R 33:33 wordpress/
     sudo chmod -R 755 wordpress/
 
-    # Clock API permissions
+    # Clock API permissions (need 777 for container to write SQLite db)
     mkdir -p clock-api/data/images
-    chown -R $USER:$USER clock-api/data/
-    chmod -R 755 clock-api/data/
+    chmod -R 777 clock-api/data/
 
     log_success "Permissions set"
 }
