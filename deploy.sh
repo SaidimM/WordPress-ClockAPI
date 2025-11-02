@@ -284,6 +284,8 @@ install_docker() {
 
         sudo usermod -aG docker $USER
         log_success "Docker installed successfully"
+        log_warning "You've been added to the docker group. You may need to log out and back in for permissions to take effect."
+        log_info "Alternatively, you can run: newgrp docker"
     fi
 
     # Configure mirrors after installation
@@ -515,9 +517,9 @@ install_node_dependencies() {
     configure_npm_mirror
 
     if [ ! -d "clock-api/node_modules" ]; then
-        log_info "Installing npm packages..."
+        log_info "Installing npm packages (this may take 5-10 minutes for native modules)..."
         cd clock-api
-        npm install --production
+        npm install --omit=dev
         cd ..
         log_success "Node.js dependencies installed"
     else
@@ -548,8 +550,16 @@ start_services() {
     print_header "Step 10: Starting Docker Services"
 
     log_info "Starting all services with Docker Compose..."
-    docker-compose down 2>/dev/null || true
-    docker-compose up -d
+
+    # Check if we can run docker without sudo
+    if docker ps &>/dev/null; then
+        docker-compose down 2>/dev/null || true
+        docker-compose up -d
+    else
+        log_warning "Running docker-compose with sudo (user not in docker group yet)"
+        sudo docker-compose down 2>/dev/null || true
+        sudo docker-compose up -d
+    fi
 
     log_info "Waiting for services to be ready..."
     sleep 10
@@ -562,13 +572,21 @@ verify_deployment() {
     print_header "Step 11: Verifying Deployment"
 
     log_info "Checking container status..."
-    docker-compose ps
+
+    # Use sudo if needed
+    if docker ps &>/dev/null; then
+        docker-compose ps
+        DOCKER_CMD="docker-compose"
+    else
+        sudo docker-compose ps
+        DOCKER_CMD="sudo docker-compose"
+    fi
 
     echo ""
     log_info "Checking service health..."
 
     # Check MySQL
-    if docker-compose exec -T mysql mysqladmin ping -h localhost -u root -p$MYSQL_ROOT_PASS 2>/dev/null | grep -q "alive"; then
+    if $DOCKER_CMD exec -T mysql mysqladmin ping -h localhost -u root -p$MYSQL_ROOT_PASS 2>/dev/null | grep -q "alive"; then
         log_success "MySQL is running"
     else
         log_warning "MySQL might not be ready yet"
@@ -583,7 +601,7 @@ verify_deployment() {
     fi
 
     # Check Nginx
-    if docker-compose exec -T nginx nginx -t > /dev/null 2>&1; then
+    if $DOCKER_CMD exec -T nginx nginx -t > /dev/null 2>&1; then
         log_success "Nginx configuration is valid"
     else
         log_warning "Nginx configuration might have issues"
