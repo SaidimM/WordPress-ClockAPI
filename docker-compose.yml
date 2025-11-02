@@ -1,0 +1,98 @@
+version: '3.7'
+
+services:
+  db:
+    image: mysql:5.7
+    restart: always
+    environment:
+      MYSQL_DATABASE: wpdb
+      MYSQL_USER: saidim
+      MYSQL_PASSWORD: unpixs
+      MYSQL_ROOT_PASSWORD: Unpixs2720
+    volumes:
+      - ./mysql:/var/lib/mysql
+    networks:
+      - wordpress-network
+
+  wordpress:
+    image: wordpress:latest
+    restart: always
+    environment:
+      WORDPRESS_DB_HOST: db:3306
+      WORDPRESS_DB_USER: saidim
+      WORDPRESS_DB_PASSWORD: unpixs
+      WORDPRESS_DB_NAME: wpdb
+    volumes:
+      - ./wordpress:/var/www/html
+    depends_on:
+      - db
+    networks:
+      - wordpress-network
+
+  nginx:
+    image: nginx:latest
+    restart: always
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./nginx/conf.d:/etc/nginx/conf.d
+      - ./wordpress:/var/www/html:ro
+      - /etc/ssl/saidim.com:/etc/ssl/saidim.com:ro
+      - ./clock-api/data/images:/var/cache/clock-api/images:ro
+    depends_on:
+      - wordpress
+    networks:
+      - wordpress-network
+
+  cert-updater:
+    build: ./cert-updater
+    restart: always
+    environment:
+      TENCENT_SECRET_ID: ${TENCENT_SECRET_ID}
+      TENCENT_SECRET_KEY: ${TENCENT_SECRET_KEY}
+      DOMAIN: "saidim.com"
+      SSL_DEST_DIR: "/certs"
+      HOST_SSL_DIR: "/host-ssl"
+      CERT_CHECK_INTERVAL_DAYS: ${CERT_CHECK_INTERVAL_DAYS:-30}
+      CERT_UPDATE_THRESHOLD_DAYS: ${CERT_UPDATE_THRESHOLD_DAYS:-60}
+    volumes:
+      - ./certs:/certs
+      - /etc/ssl/saidim.com:/host-ssl
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+    depends_on:
+      - nginx
+    networks:
+      - wordpress-network
+
+  clock-api:
+    build: ./clock-api
+    restart: always
+    environment:
+      PORT: 3001
+      NODE_ENV: production
+      UNSPLASH_ACCESS_KEY: ${UNSPLASH_ACCESS_KEY}
+      API_KEY: ${CLOCK_API_KEY:-clock_api_secure_key_2025}
+      CACHE_TTL: 3600
+      RATE_LIMIT_WINDOW_MS: 900000
+      RATE_LIMIT_MAX_REQUESTS: 100
+      DATABASE_PATH: /app/data/clock.db
+      ALLOWED_ORIGINS: "*"
+    volumes:
+      - ./clock-api/data:/app/data
+    networks:
+      - wordpress-network
+    healthcheck:
+      test: ["CMD", "node", "-e", "require('http').get('http://localhost:3001/api/v1/health', (r) => process.exit(r.statusCode === 200 ? 0 : 1))"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 10s
+
+networks:
+  wordpress-network:
+    driver: bridge
+
+volumes:
+  mysql:
+  wordpress:

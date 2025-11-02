@@ -1,0 +1,70 @@
+# Environment files
+.env
+
+# Node.js dependencies
+node_modules/
+npm-debug.log
+package-lock.json
+
+# WordPress configuration with credentials
+wordpress/wp-config.php
+
+# Claude Code local settings
+.claude/settings.local.json
+
+# SSL certificates and keys
+certs/
+*.crt
+*.key
+*.pem
+
+# Database data
+mysql/
+
+# SQLite database runtime files
+*.db-shm
+*.db-wal
+clock-api/data/*.db
+clock-api/data/*.db-journal
+
+# Image cache
+clock-api/data/images/
+
+# WordPress Core Files
+wordpress/wp-admin/
+wordpress/wp-includes/
+wordpress/wp-*.php
+wordpress/index.php
+wordpress/license.txt
+wordpress/readme.html
+wordpress/.htaccess
+wordpress/xmlrpc.php
+
+# WordPress uploads and cache
+wordpress/wp-content/uploads/
+wordpress/wp-content/cache/
+wordpress/wp-content/upgrade/
+wordpress/wp-content/upgrade-temp-backup/
+wordpress/wp-content/index.php
+
+# WordPress downloaded plugins and themes (not custom ones)
+wordpress/wp-content/plugins/contact-form-7/
+wordpress/wp-content/plugins/one-click-demo-import/
+wordpress/wp-content/themes/adinda-portfolio-resume/
+wordpress/wp-content/themes/jason-portfolio-resume/
+wordpress/wp-content/themes/twenty*/
+
+# Logs
+*.log
+
+# OS generated files
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
+
+# Docker volumes
+/var/lib/mysql/.git.backup
