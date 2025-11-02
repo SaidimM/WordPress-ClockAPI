@@ -201,6 +201,12 @@ configure_docker_mirror() {
 
         sudo mkdir -p /etc/docker
 
+        # Check if mirrors are already configured
+        if [ -f "/etc/docker/daemon.json" ] && grep -q "registry-mirrors" /etc/docker/daemon.json 2>/dev/null; then
+            log_info "Docker mirrors already configured, skipping..."
+            return
+        fi
+
         cat | sudo tee /etc/docker/daemon.json > /dev/null <<EOF
 {
   "registry-mirrors": [
@@ -216,11 +222,17 @@ configure_docker_mirror() {
 }
 EOF
 
-        # Restart Docker to apply changes
+        # Restart Docker to apply changes (only if Docker was just installed or config changed)
         if command -v docker &> /dev/null; then
-            sudo systemctl daemon-reload
-            sudo systemctl restart docker
-            log_success "Docker mirrors configured"
+            log_warning "Docker configuration updated. A restart is required."
+            read -p "Restart Docker now? This will stop running containers (y/N): " RESTART_DOCKER
+            if [[ "$RESTART_DOCKER" =~ ^[Yy]$ ]]; then
+                sudo systemctl daemon-reload
+                sudo systemctl restart docker
+                log_success "Docker mirrors configured and applied"
+            else
+                log_warning "Docker mirrors configured but not applied. Run 'sudo systemctl restart docker' manually later."
+            fi
         fi
     fi
 }
