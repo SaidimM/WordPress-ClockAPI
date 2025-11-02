@@ -249,11 +249,20 @@ install_docker() {
             sudo chmod a+r /etc/apt/keyrings/docker.asc
 
             # Add Tencent Cloud Docker repository
-            echo "deb [arch=$(dpkg --print-architecture) signed-by=/etc/apt/keyrings/docker.asc] https://mirrors.cloud.tencent.com/docker-ce/linux/ubuntu/ \
+            echo "deb [arch=$(dpkg --print-architecture) signed-by=/etc/apt/keyrings/docker.asc] https://mirrors.cloud.tencent.com/docker-ce/linux/ubuntu \
   $(. /etc/os-release && echo "$VERSION_CODENAME") stable" | sudo tee /etc/apt/sources.list.d/docker.list > /dev/null
 
             sudo apt-get update
-            sudo apt-get install -y docker-ce docker-ce-cli containerd.io
+            sudo apt-get install -y docker-ce docker-ce-cli containerd.io docker-buildx-plugin docker-compose-plugin
+
+            # Start Docker service
+            log_info "Starting Docker service..."
+            sudo systemctl start docker
+            sudo systemctl enable docker
+
+            # Verify installation
+            log_info "Verifying Docker installation..."
+            sudo docker info > /dev/null 2>&1 && log_success "Docker is running properly" || log_warning "Docker might have issues"
         else
             # Use official Docker installation script
             curl -fsSL https://get.docker.com -o get-docker.sh
@@ -271,13 +280,17 @@ install_docker() {
 
 # Install Docker Compose
 install_docker_compose() {
-    print_header "Step 3: Installing Docker Compose"
+    print_header "Step 3: Verifying Docker Compose"
 
-    if command -v docker-compose &> /dev/null; then
-        log_info "Docker Compose is already installed"
+    # Check if docker compose plugin is available (installed with Docker)
+    if docker compose version &> /dev/null; then
+        log_success "Docker Compose plugin is available"
+        docker compose version
+    elif command -v docker-compose &> /dev/null; then
+        log_success "Docker Compose standalone is available"
         docker-compose --version
     else
-        log_info "Installing Docker Compose..."
+        log_warning "Docker Compose not found, installing standalone version..."
 
         if [ "$USE_CHINA_MIRRORS" = true ]; then
             # Use Tencent Cloud mirror for Docker Compose in China
