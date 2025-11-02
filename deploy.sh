@@ -211,9 +211,11 @@ install_docker_compose() {
         log_info "Installing Docker Compose..."
 
         if [ "$USE_CHINA_MIRRORS" = true ]; then
-            # Use DaoCloud mirror for Docker Compose in China
-            log_info "Using Chinese mirror for Docker Compose..."
-            sudo curl -L "https://get.daocloud.io/docker/compose/releases/download/v2.24.0/docker-compose-$(uname -s)-$(uname -m)" -o /usr/local/bin/docker-compose
+            # Use Tencent Cloud mirror for Docker Compose in China
+            log_info "Using Tencent Cloud mirror for Docker Compose..."
+            COMPOSE_VERSION="v2.24.0"
+            sudo curl -L "https://mirrors.cloud.tencent.com/docker-toolbox/linux/compose/${COMPOSE_VERSION}/docker-compose-$(uname -s)-$(uname -m)" -o /usr/local/bin/docker-compose 2>/dev/null || \
+            sudo curl -L "https://github.com/docker/compose/releases/download/${COMPOSE_VERSION}/docker-compose-$(uname -s)-$(uname -m)" -o /usr/local/bin/docker-compose
         else
             # Use official GitHub release
             sudo curl -L "https://github.com/docker/compose/releases/latest/download/docker-compose-$(uname -s)-$(uname -m)" -o /usr/local/bin/docker-compose
