@@ -20,14 +20,47 @@ A Docker-based WordPress installation integrated with a custom Node.js Clock API
 
 ## 🚀 Deployment Guide
 
-### 1. Clone the Repository
+### Quick Deploy (Automated - Recommended)
+
+For a fully automated deployment, use the deployment script:
+
+```bash
+# Clone the repository
+git clone https://github.com/SaidimM/WordPress-ClockAPI.git
+cd WordPress-ClockAPI
+
+# Run the automated deployment script
+./deploy.sh
+```
+
+The script will:
+- ✅ Install Docker & Docker Compose (if needed)
+- ✅ Configure environment variables interactively
+- ✅ Download WordPress core files
+- ✅ Set up SSL certificates (Let's Encrypt or existing)
+- ✅ Update nginx configuration with your domain
+- ✅ Install Node.js dependencies
+- ✅ Set proper file permissions
+- ✅ Start all Docker services
+- ✅ Verify deployment
+- ✅ Save credentials securely
+
+**That's it!** The script handles everything automatically.
+
+---
+
+### Manual Deployment (Step-by-Step)
+
+If you prefer manual control, follow these steps:
+
+#### 1. Clone the Repository
 
 ```bash
 git clone https://github.com/SaidimM/WordPress-ClockAPI.git
 cd WordPress-ClockAPI
 ```
 
-### 2. Install Docker & Docker Compose
+#### 2. Install Docker & Docker Compose
 
 If not already installed:
 
@@ -48,7 +81,7 @@ docker-compose --version
 
 Log out and back in for group changes to take effect.
 
-### 3. Configure Environment Variables
+#### 3. Configure Environment Variables
 
 Create `.env` file in the root directory:
 
@@ -79,7 +112,7 @@ EOF
 
 **Important:** Replace all placeholder values with secure credentials!
 
-### 4. Download WordPress Core Files
+#### 4. Download WordPress Core Files
 
 Since WordPress core files are excluded from git, download them:
 
@@ -98,7 +131,7 @@ chmod +x wp-cli.phar
 cd ..
 ```
 
-### 5. Set Up SSL Certificates
+#### 5. Set Up SSL Certificates
 
 Place your SSL certificates in the `certs/` directory:
 
@@ -119,7 +152,7 @@ sudo cp /etc/letsencrypt/live/yourdomain.com/privkey.pem certs/
 sudo chown -R $USER:$USER certs/
 ```
 
-### 6. Update Nginx Configuration
+#### 6. Update Nginx Configuration
 
 Edit `nginx/conf.d/wordpress.conf` and `nginx/conf.d/saidim.conf`:
 
@@ -129,7 +162,7 @@ sed -i 's/saidim\.com/yourdomain.com/g' nginx/conf.d/wordpress.conf
 sed -i 's/saidim\.com/yourdomain.com/g' nginx/conf.d/saidim.conf
 ```
 
-### 7. Install Node.js Dependencies
+#### 7. Install Node.js Dependencies
 
 ```bash
 cd clock-api
@@ -137,7 +170,7 @@ npm install
 cd ..
 ```
 
-### 8. Set File Permissions
+#### 8. Set File Permissions
 
 ```bash
 # Set ownership for WordPress files
@@ -149,7 +182,7 @@ sudo chown -R $USER:$USER clock-api/data/
 sudo chmod -R 755 clock-api/data/
 ```
 
-### 9. Start Docker Services
+#### 9. Start Docker Services
 
 ```bash
 # Start all services
@@ -162,7 +195,7 @@ docker-compose ps
 docker-compose logs -f
 ```
 
-### 10. Complete WordPress Installation
+#### 10. Complete WordPress Installation
 
 1. Visit `https://yourdomain.com`
 2. Complete the WordPress installation wizard:
@@ -171,7 +204,7 @@ docker-compose logs -f
    - Create admin account
    - Configure settings
 
-### 11. Configure WordPress
+#### 11. Configure WordPress
 
 1. **Activate Custom Clock Plugin:**
    - Go to `wp-admin` → Plugins
@@ -187,7 +220,7 @@ docker-compose logs -f
    - Choose "Post name" structure
    - Save changes
 
-### 12. Verify Services
+#### 12. Verify Services
 
 ```bash
 # Check all containers are running
