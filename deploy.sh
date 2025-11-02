@@ -170,8 +170,13 @@ install_docker() {
         if [ "$USE_CHINA_MIRRORS" = true ]; then
             # Use Tencent Cloud mirror for Docker installation in China
             log_info "Using Tencent Cloud mirror for Docker installation..."
+
+            # Remove any existing Docker repositories first
+            sudo rm -f /etc/apt/sources.list.d/*docker*.list 2>/dev/null || true
+
+            # Add Tencent Cloud Docker repository
             curl -fsSL https://mirrors.cloud.tencent.com/docker-ce/linux/ubuntu/gpg | sudo apt-key add -
-            sudo add-apt-repository "deb [arch=amd64] https://mirrors.cloud.tencent.com/docker-ce/linux/ubuntu $(lsb_release -cs) stable"
+            sudo add-apt-repository -y "deb [arch=amd64] https://mirrors.cloud.tencent.com/docker-ce/linux/ubuntu $(lsb_release -cs) stable"
             sudo apt-get update
             sudo apt-get install -y docker-ce docker-ce-cli containerd.io
         else
