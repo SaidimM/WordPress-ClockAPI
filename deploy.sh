@@ -115,12 +115,18 @@ configure_deployment() {
     log_info "SSL Certificate options:"
     echo "1) Use existing certificates (I have .pem files)"
     echo "2) Generate with Let's Encrypt (Recommended - automatic & free)"
-    echo "3) Skip SSL setup (configure manually later)"
-    read -p "Choose option [1-3]: " SSL_OPTION
+    echo "3) Use Tencent Cloud SSL (with cert-updater - auto-renewal)"
+    echo "4) Skip SSL setup (configure manually later)"
+    read -p "Choose option [1-4]: " SSL_OPTION
 
     if [ "$SSL_OPTION" = "1" ]; then
         read -p "Path to fullchain.pem: " CERT_PATH
         read -p "Path to privkey.pem: " KEY_PATH
+    elif [ "$SSL_OPTION" = "3" ]; then
+        log_info "Tencent Cloud SSL Certificate requires API credentials"
+        log_info "Get them from: https://console.cloud.tencent.com/cam/capi"
+        read -p "Tencent Cloud Secret ID: " TENCENT_SECRET_ID
+        read -p "Tencent Cloud Secret Key: " TENCENT_SECRET_KEY
     fi
 
     log_success "Configuration complete!"
@@ -247,6 +253,18 @@ NODE_ENV=production
 API_SECRET_KEY=${API_SECRET}
 EOF
 
+    # Add Tencent Cloud credentials if using cert-updater (Option 3)
+    if [ "$SSL_OPTION" = "3" ]; then
+        cat >> .env << EOF
+
+# Tencent Cloud SSL Certificate (for cert-updater)
+TENCENT_SECRET_ID=${TENCENT_SECRET_ID}
+TENCENT_SECRET_KEY=${TENCENT_SECRET_KEY}
+CERT_CHECK_INTERVAL_DAYS=30
+CERT_UPDATE_THRESHOLD_DAYS=60
+EOF
+    fi
+
     chmod 600 .env
     log_success ".env file created"
 }
@@ -321,6 +339,20 @@ setup_ssl() {
 
         log_success "Let's Encrypt certificates obtained"
 
+    elif [ "$SSL_OPTION" = "3" ]; then
+        log_info "Setting up Tencent Cloud SSL with cert-updater..."
+
+        # Create self-signed certificate temporarily
+        # cert-updater will replace it with real certificate on first run
+        log_info "Creating temporary self-signed certificate..."
+        openssl req -x509 -nodes -days 365 -newkey rsa:2048 \
+            -keyout certs/privkey.pem \
+            -out certs/fullchain.pem \
+            -subj "/C=CN/ST=State/L=City/O=Organization/CN=$DOMAIN_NAME"
+
+        log_success "Temporary certificate created"
+        log_info "cert-updater will automatically download and install Tencent Cloud SSL certificate"
+
     else
         log_warning "SSL setup skipped. You'll need to configure certificates manually."
         # Create self-signed certificate for testing
@@ -344,6 +376,9 @@ update_nginx_config() {
 
     # Update Clock API nginx config
     sed -i "s/saidim\.com/$DOMAIN_NAME/g" nginx/conf.d/saidim.conf
+
+    # Update cert-updater domain in docker-compose.yml
+    sed -i "s/DOMAIN: \"saidim\.com\"/DOMAIN: \"$DOMAIN_NAME\"/g" docker-compose.yml
 
     log_success "Nginx configuration updated"
 }
@@ -487,6 +522,20 @@ API Keys:
   - Unsplash Access Key: $UNSPLASH_ACCESS
   - Unsplash Secret Key: $UNSPLASH_SECRET
   - API Secret Key: $API_SECRET
+EOF
+
+    # Add Tencent Cloud credentials if Option 3 was selected
+    if [ "$SSL_OPTION" = "3" ]; then
+        cat >> $CREDS_FILE << EOF
+
+Tencent Cloud SSL:
+  - Secret ID: $TENCENT_SECRET_ID
+  - Secret Key: $TENCENT_SECRET_KEY
+  - cert-updater will auto-renew certificates every 30 days
+EOF
+    fi
+
+    cat >> $CREDS_FILE << EOF
 
 Docker Commands:
   - View logs: docker-compose logs -f
@@ -541,6 +590,14 @@ print_final_instructions() {
         echo -e "${BLUE}SSL Certificate Auto-Renewal:${NC}"
         echo "Add this to crontab for automatic renewal:"
         echo "0 0 * * * certbot renew --quiet && docker-compose restart nginx"
+        echo ""
+    elif [ "$SSL_OPTION" = "3" ]; then
+        echo -e "${BLUE}Tencent Cloud SSL Certificate:${NC}"
+        echo "cert-updater service will automatically:"
+        echo "- Check for certificate updates every 30 days"
+        echo "- Download and install new certificates from Tencent Cloud"
+        echo "- Reload nginx automatically"
+        echo "Monitor cert-updater logs: docker-compose logs -f cert-updater"
         echo ""
     fi
 }
