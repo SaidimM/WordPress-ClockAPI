@@ -56,12 +56,26 @@ detect_china_region() {
     return 1  # Not in China
 }
 
+# Load existing configuration
+load_existing_config() {
+    if [ -f ".env" ]; then
+        log_info "Found existing .env file, loading previous configuration..."
+        source .env 2>/dev/null || true
+        EXISTING_CONFIG=true
+    else
+        EXISTING_CONFIG=false
+    fi
+}
+
 # Interactive configuration
 configure_deployment() {
     print_header "Step 1: Configuration"
 
     echo "Let's configure your deployment..."
     echo ""
+
+    # Load existing config if available
+    load_existing_config
 
     # Detect region
     if detect_china_region; then
@@ -78,7 +92,15 @@ configure_deployment() {
     fi
 
     # Domain configuration
-    read -p "Enter your domain name (e.g., example.com): " DOMAIN_NAME
+    if [ "$EXISTING_CONFIG" = true ] && [ -n "$WORDPRESS_DB_NAME" ]; then
+        # Extract domain from nginx config if possible
+        SAVED_DOMAIN=$(grep -oP 'server_name\s+\K[^;]+' nginx/conf.d/wordpress.conf 2>/dev/null | head -1 | awk '{print $1}')
+        read -p "Enter your domain name [$SAVED_DOMAIN]: " DOMAIN_NAME
+        DOMAIN_NAME=${DOMAIN_NAME:-$SAVED_DOMAIN}
+    else
+        read -p "Enter your domain name (e.g., example.com): " DOMAIN_NAME
+    fi
+
     if [ -z "$DOMAIN_NAME" ]; then
         log_error "Domain name is required!"
         exit 1
@@ -86,28 +108,56 @@ configure_deployment() {
 
     # Database credentials
     log_info "Configuring database credentials..."
-    read -p "MySQL root password (leave empty for auto-generated): " MYSQL_ROOT_PASS
-    if [ -z "$MYSQL_ROOT_PASS" ]; then
-        MYSQL_ROOT_PASS=$(openssl rand -base64 24)
-        log_info "Generated MySQL root password: $MYSQL_ROOT_PASS"
+
+    if [ "$EXISTING_CONFIG" = true ] && [ -n "$MYSQL_ROOT_PASSWORD" ]; then
+        read -p "MySQL root password [press Enter to keep existing]: " INPUT_MYSQL_PASS
+        MYSQL_ROOT_PASS=${INPUT_MYSQL_PASS:-$MYSQL_ROOT_PASSWORD}
+    else
+        read -p "MySQL root password (leave empty for auto-generated): " MYSQL_ROOT_PASS
+        if [ -z "$MYSQL_ROOT_PASS" ]; then
+            MYSQL_ROOT_PASS=$(openssl rand -base64 24)
+            log_info "Generated MySQL root password: $MYSQL_ROOT_PASS"
+        fi
     fi
 
-    read -p "WordPress database password (leave empty for auto-generated): " WP_DB_PASS
-    if [ -z "$WP_DB_PASS" ]; then
-        WP_DB_PASS=$(openssl rand -base64 24)
-        log_info "Generated WordPress DB password: $WP_DB_PASS"
+    if [ "$EXISTING_CONFIG" = true ] && [ -n "$MYSQL_PASSWORD" ]; then
+        read -p "WordPress database password [press Enter to keep existing]: " INPUT_WP_PASS
+        WP_DB_PASS=${INPUT_WP_PASS:-$MYSQL_PASSWORD}
+    else
+        read -p "WordPress database password (leave empty for auto-generated): " WP_DB_PASS
+        if [ -z "$WP_DB_PASS" ]; then
+            WP_DB_PASS=$(openssl rand -base64 24)
+            log_info "Generated WordPress DB password: $WP_DB_PASS"
+        fi
     fi
 
     # Unsplash API keys
     log_warning "You need Unsplash API credentials from https://unsplash.com/developers"
-    read -p "Unsplash Access Key: " UNSPLASH_ACCESS
-    read -p "Unsplash Secret Key: " UNSPLASH_SECRET
+
+    if [ "$EXISTING_CONFIG" = true ] && [ -n "$UNSPLASH_ACCESS_KEY" ]; then
+        read -p "Unsplash Access Key [press Enter to keep existing]: " INPUT_UNSPLASH_ACCESS
+        UNSPLASH_ACCESS=${INPUT_UNSPLASH_ACCESS:-$UNSPLASH_ACCESS_KEY}
+    else
+        read -p "Unsplash Access Key: " UNSPLASH_ACCESS
+    fi
+
+    if [ "$EXISTING_CONFIG" = true ] && [ -n "$UNSPLASH_SECRET_KEY" ]; then
+        read -p "Unsplash Secret Key [press Enter to keep existing]: " INPUT_UNSPLASH_SECRET
+        UNSPLASH_SECRET=${INPUT_UNSPLASH_SECRET:-$UNSPLASH_SECRET_KEY}
+    else
+        read -p "Unsplash Secret Key: " UNSPLASH_SECRET
+    fi
 
     # API secret
-    read -p "API Secret Key (leave empty for auto-generated): " API_SECRET
-    if [ -z "$API_SECRET" ]; then
-        API_SECRET=$(openssl rand -base64 32)
-        log_info "Generated API secret key"
+    if [ "$EXISTING_CONFIG" = true ] && [ -n "$API_SECRET_KEY" ]; then
+        read -p "API Secret Key [press Enter to keep existing]: " INPUT_API_SECRET
+        API_SECRET=${INPUT_API_SECRET:-$API_SECRET_KEY}
+    else
+        read -p "API Secret Key (leave empty for auto-generated): " API_SECRET
+        if [ -z "$API_SECRET" ]; then
+            API_SECRET=$(openssl rand -base64 32)
+            log_info "Generated API secret key"
+        fi
     fi
 
     # SSL certificate option
@@ -125,8 +175,20 @@ configure_deployment() {
     elif [ "$SSL_OPTION" = "3" ]; then
         log_info "Tencent Cloud SSL Certificate requires API credentials"
         log_info "Get them from: https://console.cloud.tencent.com/cam/capi"
-        read -p "Tencent Cloud Secret ID: " TENCENT_SECRET_ID
-        read -p "Tencent Cloud Secret Key: " TENCENT_SECRET_KEY
+
+        if [ "$EXISTING_CONFIG" = true ] && [ -n "$TENCENT_SECRET_ID" ]; then
+            read -p "Tencent Cloud Secret ID [press Enter to keep existing]: " INPUT_TENCENT_ID
+            TENCENT_SECRET_ID=${INPUT_TENCENT_ID:-$TENCENT_SECRET_ID}
+        else
+            read -p "Tencent Cloud Secret ID: " TENCENT_SECRET_ID
+        fi
+
+        if [ "$EXISTING_CONFIG" = true ] && [ -n "$TENCENT_SECRET_KEY" ]; then
+            read -p "Tencent Cloud Secret Key [press Enter to keep existing]: " INPUT_TENCENT_KEY
+            TENCENT_SECRET_KEY=${INPUT_TENCENT_KEY:-$TENCENT_SECRET_KEY}
+        else
+            read -p "Tencent Cloud Secret Key: " TENCENT_SECRET_KEY
+        fi
     fi
 
     log_success "Configuration complete!"
