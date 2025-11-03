@@ -329,6 +329,9 @@ create_env_file() {
     log_info "Creating .env file..."
 
     cat > .env << EOF
+# Domain Configuration
+DOMAIN_NAME=${DOMAIN_NAME}
+
 # MySQL Configuration
 MYSQL_ROOT_PASSWORD=${MYSQL_ROOT_PASS}
 MYSQL_DATABASE=wordpress
@@ -367,41 +370,23 @@ EOF
     log_success ".env file created"
 }
 
-# Download WordPress
-download_wordpress() {
-    print_header "Step 5: Downloading WordPress Core"
+# Prepare WordPress directories
+prepare_wordpress_directories() {
+    print_header "Step 5: Preparing WordPress Custom Directories"
 
-    if [ -f "wordpress/wp-load.php" ]; then
-        log_warning "WordPress core files already exist, skipping download"
-        return
-    fi
+    log_info "Creating directories for custom plugins and themes..."
 
-    log_info "Downloading WordPress..."
-    cd wordpress
+    # Create directories for custom plugins/themes (mounted as volumes)
+    mkdir -p wordpress-custom/plugins
+    mkdir -p wordpress-custom/themes
 
-    # Try WP-CLI first
-    if command -v wp &> /dev/null; then
-        wp core download --skip-content
-    else
-        # Fallback to direct download
-        if [ "$USE_CHINA_MIRRORS" = true ]; then
-            log_info "Using Chinese mirror for WordPress..."
-            wget -q https://cn.wordpress.org/latest-zh_CN.tar.gz -O wordpress.tar.gz
-        else
-            wget -q https://wordpress.org/latest.tar.gz -O wordpress.tar.gz
-        fi
-
-        tar -xzf wordpress.tar.gz --strip-components=1
-        rm wordpress.tar.gz
-    fi
-
-    cd ..
-    log_success "WordPress downloaded"
+    log_info "WordPress will be automatically installed by Docker on first run"
+    log_success "Custom directories prepared"
 }
 
 # Setup SSL certificates
 setup_ssl() {
-    print_header "Step 6: Setting Up SSL Certificates"
+    print_header "Step 5: Setting Up SSL Certificates"
 
     mkdir -p certs
 
@@ -465,7 +450,7 @@ setup_ssl() {
 
 # Update nginx configuration
 update_nginx_config() {
-    print_header "Step 7: Updating Nginx Configuration"
+    print_header "Step 6: Updating Nginx Configuration"
 
     log_info "Updating domain in nginx configuration..."
 
@@ -475,141 +460,138 @@ update_nginx_config() {
     # Update Clock API nginx config
     sed -i "s/saidim\.com/$DOMAIN_NAME/g" nginx/conf.d/saidim.conf
 
-    # Update cert-updater domain in docker-compose.yml
-    sed -i "s/DOMAIN: \"saidim\.com\"/DOMAIN: \"$DOMAIN_NAME\"/g" docker-compose.yml
+    # Update SSL certificate paths to use /etc/ssl/certs (Docker mount point)
+    sed -i "s|/etc/ssl/saidim\.com/|/etc/ssl/certs/|g" nginx/conf.d/wordpress.conf
+    sed -i "s|/etc/ssl/saidim\.com/|/etc/ssl/certs/|g" nginx/conf.d/saidim.conf
 
     log_success "Nginx configuration updated"
 }
 
-# Configure npm mirror for China
-configure_npm_mirror() {
-    if [ "$USE_CHINA_MIRRORS" = true ]; then
-        log_info "Configuring npm to use Taobao mirror..."
-        npm config set registry https://registry.npmmirror.com
-        log_success "npm mirror configured"
-    fi
-}
-
-# Install Node.js dependencies
-install_node_dependencies() {
-    print_header "Step 8: Installing Node.js Dependencies"
-
-    # Check if Node.js is installed
-    if ! command -v node &> /dev/null; then
-        log_warning "Node.js is not installed. Installing Node.js..."
-
-        if [ "$USE_CHINA_MIRRORS" = true ]; then
-            # Use Tencent mirror for Node.js in China
-            log_info "Using Tencent mirror for Node.js..."
-            curl -fsSL https://mirrors.cloud.tencent.com/nodejs-release/v18.19.0/node-v18.19.0-linux-x64.tar.xz -o node.tar.xz
-            sudo tar -xJf node.tar.xz -C /usr/local --strip-components=1
-            rm node.tar.xz
-        else
-            # Use NodeSource for standard installation
-            curl -fsSL https://deb.nodesource.com/setup_18.x | sudo -E bash -
-            sudo apt-get install -y nodejs
-        fi
-
-        log_success "Node.js installed successfully"
-    fi
-
-    # Configure npm mirror
-    configure_npm_mirror
-
-    if [ ! -d "clock-api/node_modules" ]; then
-        log_info "Installing npm packages (this may take 5-10 minutes for native modules)..."
-        cd clock-api
-        npm install --omit=dev
-        cd ..
-        log_success "Node.js dependencies installed"
-    else
-        log_warning "Node modules already exist, skipping installation"
-    fi
-}
 
 # Set permissions
 set_permissions() {
-    print_header "Step 9: Setting File Permissions"
+    print_header "Step 7: Setting File Permissions"
 
-    log_info "Setting permissions..."
+    log_info "Setting permissions for local directories..."
 
-    # WordPress permissions
-    sudo chown -R www-data:www-data wordpress/ 2>/dev/null || chown -R 33:33 wordpress/
-    sudo chmod -R 755 wordpress/
+    # Custom WordPress plugins/themes permissions
+    chmod -R 755 wordpress-custom/ 2>/dev/null || true
 
-    # Clock API permissions (need 777 for container to write SQLite db)
-    mkdir -p clock-api/data/images
-    chmod -R 777 clock-api/data/
+    # SSL certificates permissions
+    chmod -R 600 certs/*.pem 2>/dev/null || true
+
+    # Docker will manage permissions for named volumes (wordpress_data, mysql_data, clock_api_data)
+    log_info "Docker volumes will be managed automatically by containers"
 
     log_success "Permissions set"
 }
 
 # Start Docker services
 start_services() {
-    print_header "Step 10: Starting Docker Services"
+    print_header "Step 8: Starting Docker Services"
 
     log_info "Starting all services with Docker Compose..."
 
-    # Check if we can run docker without sudo
-    if docker ps &>/dev/null; then
-        docker-compose down 2>/dev/null || true
-        docker-compose up -d
+    # Determine compose command (try docker compose plugin first, fallback to docker-compose)
+    if docker compose version &> /dev/null 2>&1; then
+        COMPOSE_CMD="docker compose"
+    elif command -v docker-compose &> /dev/null; then
+        COMPOSE_CMD="docker-compose"
     else
-        log_warning "Running docker-compose with sudo (user not in docker group yet)"
-        sudo docker-compose down 2>/dev/null || true
-        sudo docker-compose up -d
+        log_error "Docker Compose not found!"
+        exit 1
+    fi
+
+    # Check if we can run docker without sudo
+    if docker ps &>/dev/null 2>&1; then
+        $COMPOSE_CMD down 2>/dev/null || true
+
+        # Start services (optionally with cert-updater profile)
+        if [ "$SSL_OPTION" = "3" ]; then
+            log_info "Starting with Tencent SSL cert-updater..."
+            $COMPOSE_CMD --profile tencent-ssl up -d
+        else
+            $COMPOSE_CMD up -d
+        fi
+    else
+        log_warning "Running docker compose with sudo (user not in docker group yet)"
+        sudo $COMPOSE_CMD down 2>/dev/null || true
+
+        if [ "$SSL_OPTION" = "3" ]; then
+            sudo $COMPOSE_CMD --profile tencent-ssl up -d
+        else
+            sudo $COMPOSE_CMD up -d
+        fi
     fi
 
     log_info "Waiting for services to be ready..."
-    sleep 10
+    sleep 15
 
     log_success "All services started"
 }
 
 # Verify deployment
 verify_deployment() {
-    print_header "Step 11: Verifying Deployment"
+    print_header "Step 9: Verifying Deployment"
 
     log_info "Checking container status..."
 
+    # Determine compose command and sudo requirement
+    if docker compose version &> /dev/null 2>&1; then
+        COMPOSE_CMD="docker compose"
+    elif command -v docker-compose &> /dev/null; then
+        COMPOSE_CMD="docker-compose"
+    fi
+
     # Use sudo if needed
-    if docker ps &>/dev/null; then
-        docker-compose ps
-        DOCKER_CMD="docker-compose"
+    if docker ps &>/dev/null 2>&1; then
+        $COMPOSE_CMD ps
+        DOCKER_CMD="docker"
     else
-        sudo docker-compose ps
-        DOCKER_CMD="sudo docker-compose"
+        sudo $COMPOSE_CMD ps
+        DOCKER_CMD="sudo docker"
     fi
 
     echo ""
     log_info "Checking service health..."
 
     # Check MySQL
-    if $DOCKER_CMD exec -T mysql mysqladmin ping -h localhost -u root -p$MYSQL_ROOT_PASS 2>/dev/null | grep -q "alive"; then
+    if $DOCKER_CMD exec wordpress-mysql mysqladmin ping -h localhost -u root -p$MYSQL_ROOT_PASS 2>/dev/null | grep -q "alive"; then
         log_success "MySQL is running"
     else
-        log_warning "MySQL might not be ready yet"
+        log_warning "MySQL might not be ready yet (this is normal on first start)"
+    fi
+
+    # Check WordPress
+    if $DOCKER_CMD exec wordpress-app php -v > /dev/null 2>&1; then
+        log_success "WordPress container is running"
+    else
+        log_warning "WordPress might not be ready yet"
     fi
 
     # Check Clock API
     sleep 5
-    if curl -s http://localhost:3000/health > /dev/null 2>&1; then
+    CLOCK_PORT=${CLOCK_API_PORT:-3000}
+    if curl -s http://localhost:$CLOCK_PORT/health > /dev/null 2>&1; then
         log_success "Clock API is running"
     else
-        log_warning "Clock API might not be ready yet"
+        log_warning "Clock API might not be ready yet (check logs: $COMPOSE_CMD logs clock-api)"
     fi
 
     # Check Nginx
-    if $DOCKER_CMD exec -T nginx nginx -t > /dev/null 2>&1; then
+    if $DOCKER_CMD exec wordpress-nginx nginx -t > /dev/null 2>&1; then
         log_success "Nginx configuration is valid"
     else
         log_warning "Nginx configuration might have issues"
     fi
+
+    echo ""
+    log_info "View logs with: $COMPOSE_CMD logs -f"
 }
 
 # Save credentials
 save_credentials() {
-    print_header "Step 12: Saving Credentials"
+    print_header "Step 10: Saving Credentials"
 
     CREDS_FILE="deployment-credentials.txt"
 
@@ -721,10 +703,9 @@ main() {
     install_docker
     install_docker_compose
     create_env_file
-    download_wordpress
+    prepare_wordpress_directories
     setup_ssl
     update_nginx_config
-    install_node_dependencies
     set_permissions
     start_services
     verify_deployment

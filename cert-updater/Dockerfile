@@ -24,7 +24,7 @@ RUN set -eux; \
 
 # 安装 Docker CLI（静态二进制）
 RUN set -eux; \
-    curl -fsSL https://mirrors.aliyun.com/docker-ce/linux/static/stable/x86_64/docker-27.3.1.tgz -o /tmp/docker.tgz; \
+    curl -fsSL https://mirrors.cloud.tencent.com/docker-ce/linux/static/stable/x86_64/docker-27.3.1.tgz -o /tmp/docker.tgz; \
     tar -xzf /tmp/docker.tgz -C /tmp; \
     mv /tmp/docker/docker /usr/local/bin/; \
     rm -rf /tmp/docker /tmp/docker.tgz
