@@ -47,8 +47,8 @@ COPY --from=builder /app/node_modules ./node_modules
 # Copy application code
 COPY --chown=nodejs:nodejs . .
 
-# Create data directory for SQLite database
-RUN mkdir -p /app/data && chown nodejs:nodejs /app/data
+# Create data directory for SQLite database and images cache
+RUN mkdir -p /app/data/images && chown -R nodejs:nodejs /app/data
 
 # Switch to non-root user
 USER nodejs
