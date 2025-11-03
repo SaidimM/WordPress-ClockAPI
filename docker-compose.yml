@@ -30,7 +30,7 @@ services:
       WORDPRESS_DB_NAME: ${WORDPRESS_DB_NAME}
     volumes:
       - wordpress_data:/var/www/html
-      - ./wordpress/plugins:/var/www/html/wp-content/plugins/custom
+      - ./wordpress/plugins/custom-clock:/var/www/html/wp-content/plugins/custom-clock
       - ./wordpress/themes:/var/www/html/wp-content/themes/custom
     depends_on:
       mysql:
@@ -49,7 +49,7 @@ services:
       - ./nginx/conf.d:/etc/nginx/conf.d:ro
       - wordpress_data:/var/www/html:ro
       - ./certs:/etc/ssl/certs:ro
-      - ./clock-api/data/images:/var/cache/clock-api/images:ro
+      - clock_api_data:/var/cache/clock-api:ro
     depends_on:
       wordpress:
         condition: service_started
