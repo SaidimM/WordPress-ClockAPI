@@ -133,6 +133,7 @@ configure_deployment() {
 
     # Unsplash API keys
     log_warning "You need Unsplash API credentials from https://unsplash.com/developers"
+    log_info "These keys are used by the Clock API backend to fetch images"
 
     if [ "$EXISTING_CONFIG" = true ] && [ -n "$UNSPLASH_ACCESS_KEY" ]; then
         read -p "Unsplash Access Key [press Enter to keep existing]: " INPUT_UNSPLASH_ACCESS
@@ -377,8 +378,15 @@ prepare_wordpress_directories() {
     log_info "Creating directories for custom plugins and themes..."
 
     # Create directories for custom plugins/themes (mounted as volumes)
-    mkdir -p wordpress-custom/plugins
-    mkdir -p wordpress-custom/themes
+    mkdir -p wordpress/plugins
+    mkdir -p wordpress/themes
+
+    # Copy custom-clock plugin if it exists in source
+    if [ -d "wordpress/plugins/custom-clock" ]; then
+        log_success "Custom clock plugin already in place"
+    else
+        log_warning "Custom clock plugin not found - you'll need to add it manually"
+    fi
 
     log_info "WordPress will be automatically installed by Docker on first run"
     log_success "Custom directories prepared"
@@ -454,15 +462,12 @@ update_nginx_config() {
 
     log_info "Updating domain in nginx configuration..."
 
-    # Update WordPress nginx config
+    # Update WordPress nginx config (this includes Clock API proxy config)
     sed -i "s/saidim\.com/$DOMAIN_NAME/g" nginx/conf.d/wordpress.conf
-
-    # Update Clock API nginx config
-    sed -i "s/saidim\.com/$DOMAIN_NAME/g" nginx/conf.d/saidim.conf
+    sed -i "s/www\.saidim\.com/www.$DOMAIN_NAME/g" nginx/conf.d/wordpress.conf
 
     # Update SSL certificate paths to use /etc/ssl/certs (Docker mount point)
     sed -i "s|/etc/ssl/saidim\.com/|/etc/ssl/certs/|g" nginx/conf.d/wordpress.conf
-    sed -i "s|/etc/ssl/saidim\.com/|/etc/ssl/certs/|g" nginx/conf.d/saidim.conf
 
     log_success "Nginx configuration updated"
 }
@@ -475,7 +480,7 @@ set_permissions() {
     log_info "Setting permissions for local directories..."
 
     # Custom WordPress plugins/themes permissions
-    chmod -R 755 wordpress-custom/ 2>/dev/null || true
+    chmod -R 755 wordpress/ 2>/dev/null || true
 
     # SSL certificates permissions
     chmod -R 600 certs/*.pem 2>/dev/null || true
@@ -589,9 +594,39 @@ verify_deployment() {
     log_info "View logs with: $COMPOSE_CMD logs -f"
 }
 
+# Activate plugin and flush permalinks
+activate_plugin() {
+    print_header "Step 10: Activating Professional World Clock Plugin"
+
+    log_info "Waiting for WordPress to be fully initialized..."
+    sleep 10
+
+    # Determine docker command
+    if docker ps &>/dev/null 2>&1; then
+        DOCKER_CMD="docker"
+    else
+        DOCKER_CMD="sudo docker"
+    fi
+
+    # Activate the plugin via database
+    log_info "Activating custom-clock plugin..."
+    $DOCKER_CMD exec wordpress-mysql mysql -u wordpress_user -p$WP_DB_PASS wordpress -e \
+        "UPDATE wp_options SET option_value = 'a:1:{i:0;s:29:\"custom-clock/custom-clock.php\";}' WHERE option_name = 'active_plugins';" \
+        2>/dev/null || log_warning "Plugin activation via database failed (may need manual activation)"
+
+    # Flush rewrite rules for /clock endpoint
+    log_info "Flushing WordPress permalinks for /clock page..."
+    $DOCKER_CMD exec wordpress-mysql mysql -u wordpress_user -p$WP_DB_PASS wordpress -e \
+        "DELETE FROM wp_options WHERE option_name = 'rewrite_rules';" \
+        2>/dev/null || log_warning "Permalink flush failed"
+
+    log_success "Plugin activated and permalinks flushed"
+    log_info "The clock page will be available at: https://$DOMAIN_NAME/clock/"
+}
+
 # Save credentials
 save_credentials() {
-    print_header "Step 10: Saving Credentials"
+    print_header "Step 11: Saving Credentials"
 
     CREDS_FILE="deployment-credentials.txt"
 
@@ -660,14 +695,16 @@ print_final_instructions() {
     echo "2. WordPress Admin:"
     echo "   URL: https://$DOMAIN_NAME/wp-admin"
     echo ""
-    echo "3. Activate the Custom Clock plugin:"
-    echo "   Go to Plugins → Activate 'Custom Clock'"
+    echo "3. View the Professional World Clock:"
+    echo "   URL: https://$DOMAIN_NAME/clock/"
+    echo "   (Plugin is already activated and configured)"
     echo ""
-    echo "4. Create a page with clock shortcode:"
-    echo "   Add shortcode: [custom_clock]"
+    echo "4. Configure plugin settings (optional):"
+    echo "   Go to Settings → World Clock → Image Gallery"
+    echo "   Download cached images from Unsplash"
     echo ""
     echo "5. Test Clock API:"
-    echo "   curl https://$DOMAIN_NAME/api/clock"
+    echo "   curl https://$DOMAIN_NAME/api/clock/health"
     echo ""
     echo "6. View logs:"
     echo "   docker-compose logs -f"
@@ -709,6 +746,7 @@ main() {
     set_permissions
     start_services
     verify_deployment
+    activate_plugin
     save_credentials
     print_final_instructions
 
