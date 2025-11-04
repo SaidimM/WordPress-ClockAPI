@@ -785,6 +785,9 @@ class ProfessionalWorldClockPlugin {
                         </button>
                     </div>
                 </form>
+                <p style="margin-top: 10px; color: #666; font-size: 12px;">
+                    <strong>Note:</strong> Check server logs for download progress.
+                </p>
             </div>
 
             <!-- Cache Statistics -->
