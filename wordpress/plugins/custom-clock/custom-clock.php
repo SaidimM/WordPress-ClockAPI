@@ -417,6 +417,7 @@ class ProfessionalWorldClockPlugin {
     public function register_settings() {
         register_setting('pwc_settings', 'pwc_options', array($this, 'sanitize_options'));
 
+        // API Configuration Section
         add_settings_section(
             'pwc_api_section',
             'Unsplash API Configuration',
@@ -431,6 +432,46 @@ class ProfessionalWorldClockPlugin {
             'professional-world-clock',
             'pwc_api_section'
         );
+
+        // Style Customization Section
+        add_settings_section(
+            'pwc_style_section',
+            'Clock Style Customization',
+            array($this, 'render_style_section_info'),
+            'professional-world-clock'
+        );
+
+        add_settings_field(
+            'clock_font',
+            'Clock Font',
+            array($this, 'render_clock_font_field'),
+            'professional-world-clock',
+            'pwc_style_section'
+        );
+
+        add_settings_field(
+            'date_font',
+            'Date Font',
+            array($this, 'render_date_font_field'),
+            'professional-world-clock',
+            'pwc_style_section'
+        );
+
+        add_settings_field(
+            'digit_animation',
+            'Digit Change Animation',
+            array($this, 'render_digit_animation_field'),
+            'professional-world-clock',
+            'pwc_style_section'
+        );
+
+        add_settings_field(
+            'display_mode',
+            'Display Mode',
+            array($this, 'render_display_mode_field'),
+            'professional-world-clock',
+            'pwc_style_section'
+        );
     }
 
     /**
@@ -439,6 +480,18 @@ class ProfessionalWorldClockPlugin {
     public function sanitize_options($options) {
         if (isset($options['unsplash_api_key'])) {
             $options['unsplash_api_key'] = sanitize_text_field($options['unsplash_api_key']);
+        }
+        if (isset($options['clock_font'])) {
+            $options['clock_font'] = sanitize_text_field($options['clock_font']);
+        }
+        if (isset($options['date_font'])) {
+            $options['date_font'] = sanitize_text_field($options['date_font']);
+        }
+        if (isset($options['digit_animation'])) {
+            $options['digit_animation'] = sanitize_text_field($options['digit_animation']);
+        }
+        if (isset($options['display_mode'])) {
+            $options['display_mode'] = sanitize_text_field($options['display_mode']);
         }
         return $options;
     }
@@ -468,6 +521,111 @@ class ProfessionalWorldClockPlugin {
         <p class="description">Current key: <?php echo esc_html($masked_key); ?></p>
         <?php endif; ?>
         <p class="description">Your API key is stored securely and never exposed to the browser. To download images with specific topics, go to the Image Gallery tab.</p>
+        <?php
+    }
+
+    /**
+     * Render style section info
+     */
+    public function render_style_section_info() {
+        echo '<p>Customize the appearance and behavior of your clock display.</p>';
+    }
+
+    /**
+     * Render clock font field
+     */
+    public function render_clock_font_field() {
+        $options = get_option('pwc_options', array());
+        $clock_font = isset($options['clock_font']) ? $options['clock_font'] : 'Orbitron';
+        $fonts = array(
+            'Orbitron' => 'Orbitron (Digital, default)',
+            'Roboto Mono' => 'Roboto Mono (Modern)',
+            'Space Mono' => 'Space Mono (Retro)',
+            'Rajdhani' => 'Rajdhani (Bold)',
+            'Audiowide' => 'Audiowide (Futuristic)',
+            'Iceland' => 'Iceland (Minimalist)'
+        );
+        ?>
+        <select name="pwc_options[clock_font]" class="regular-text">
+            <?php foreach ($fonts as $value => $label): ?>
+                <option value="<?php echo esc_attr($value); ?>" <?php selected($clock_font, $value); ?>>
+                    <?php echo esc_html($label); ?>
+                </option>
+            <?php endforeach; ?>
+        </select>
+        <p class="description">Choose the font for the clock digits.</p>
+        <?php
+    }
+
+    /**
+     * Render date font field
+     */
+    public function render_date_font_field() {
+        $options = get_option('pwc_options', array());
+        $date_font = isset($options['date_font']) ? $options['date_font'] : 'System';
+        $fonts = array(
+            'System' => 'System Font (default)',
+            'Orbitron' => 'Orbitron (Match clock)',
+            'Roboto' => 'Roboto (Clean)'
+        );
+        ?>
+        <select name="pwc_options[date_font]" class="regular-text">
+            <?php foreach ($fonts as $value => $label): ?>
+                <option value="<?php echo esc_attr($value); ?>" <?php selected($date_font, $value); ?>>
+                    <?php echo esc_html($label); ?>
+                </option>
+            <?php endforeach; ?>
+        </select>
+        <p class="description">Choose the font for the date display.</p>
+        <?php
+    }
+
+    /**
+     * Render digit animation field
+     */
+    public function render_digit_animation_field() {
+        $options = get_option('pwc_options', array());
+        $digit_animation = isset($options['digit_animation']) ? $options['digit_animation'] : 'fade';
+        $animations = array(
+            'fade' => 'Fade (default)',
+            'slide-up' => 'Slide Up',
+            'slide-down' => 'Slide Down',
+            'flip' => 'Flip (3D effect)',
+            'scale' => 'Scale (Zoom)'
+        );
+        ?>
+        <select name="pwc_options[digit_animation]" class="regular-text">
+            <?php foreach ($animations as $value => $label): ?>
+                <option value="<?php echo esc_attr($value); ?>" <?php selected($digit_animation, $value); ?>>
+                    <?php echo esc_html($label); ?>
+                </option>
+            <?php endforeach; ?>
+        </select>
+        <p class="description">Choose the animation effect when digits change.</p>
+        <?php
+    }
+
+    /**
+     * Render display mode field
+     */
+    public function render_display_mode_field() {
+        $options = get_option('pwc_options', array());
+        $display_mode = isset($options['display_mode']) ? $options['display_mode'] : 'normal';
+        $modes = array(
+            'normal' => 'Normal (default)',
+            'dim' => 'Dim (reduced brightness)',
+            'minimal' => 'Minimal (clock only)',
+            'high-contrast' => 'High Contrast (enhanced visibility)'
+        );
+        ?>
+        <select name="pwc_options[display_mode]" class="regular-text">
+            <?php foreach ($modes as $value => $label): ?>
+                <option value="<?php echo esc_attr($value); ?>" <?php selected($display_mode, $value); ?>>
+                    <?php echo esc_html($label); ?>
+                </option>
+            <?php endforeach; ?>
+        </select>
+        <p class="description">Choose the display mode for different viewing preferences.</p>
         <?php
     }
 

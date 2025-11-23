@@ -1,7 +1,11 @@
 <?php
-// Get configured Unsplash topics from plugin settings
+// Get configured settings from plugin options
 $pwc_options = get_option('pwc_options', array());
 $unsplash_topics = isset($pwc_options['unsplash_topics']) ? $pwc_options['unsplash_topics'] : 'nature,landscape';
+$clock_font = isset($pwc_options['clock_font']) ? $pwc_options['clock_font'] : 'Orbitron';
+$date_font = isset($pwc_options['date_font']) ? $pwc_options['date_font'] : 'System';
+$digit_animation = isset($pwc_options['digit_animation']) ? $pwc_options['digit_animation'] : 'fade';
+$display_mode = isset($pwc_options['display_mode']) ? $pwc_options['display_mode'] : 'normal';
 ?>
 <!DOCTYPE html>
 <html lang="en">
@@ -12,7 +16,7 @@ $unsplash_topics = isset($pwc_options['unsplash_topics']) ? $pwc_options['unspla
     <title>Clock - Saidim.com</title>
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@400;700;900&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@400;700;900&family=Roboto+Mono:wght@400;700;900&family=Space+Mono:wght@400;700&family=Rajdhani:wght@400;700;900&family=Audiowide:wght@400&family=Iceland&display=swap" rel="stylesheet">
     <style>
         * {
             margin: 0;
@@ -20,12 +24,50 @@ $unsplash_topics = isset($pwc_options['unsplash_topics']) ? $pwc_options['unspla
             box-sizing: border-box;
         }
 
+        <?php
+        // Map font selection to CSS font families
+        $font_families = array(
+            'Orbitron' => "'Orbitron', monospace",
+            'Roboto Mono' => "'Roboto Mono', monospace",
+            'Space Mono' => "'Space Mono', monospace",
+            'Rajdhani' => "'Rajdhani', sans-serif",
+            'Audiowide' => "'Audiowide', sans-serif",
+            'Iceland' => "'Iceland', sans-serif"
+        );
+        $date_font_families = array(
+            'System' => "-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif",
+            'Orbitron' => "'Orbitron', monospace",
+            'Roboto' => "'Roboto', sans-serif"
+        );
+        $selected_clock_font = isset($font_families[$clock_font]) ? $font_families[$clock_font] : $font_families['Orbitron'];
+        $selected_date_font = isset($date_font_families[$date_font]) ? $date_font_families[$date_font] : $date_font_families['System'];
+        ?>
+
         body {
-            font-family: 'Orbitron', monospace, sans-serif;
+            font-family: <?php echo $selected_clock_font; ?>;
             overflow: hidden;
             width: 100vw;
             height: 100vh;
             position: relative;
+        }
+
+        /* Display mode styles */
+        body.display-mode-dim .content-container {
+            opacity: 0.6;
+        }
+
+        body.display-mode-minimal .date-display,
+        body.display-mode-minimal .bottom-info {
+            opacity: 0;
+            pointer-events: none;
+        }
+
+        body.display-mode-high-contrast .digit-value,
+        body.display-mode-high-contrast .separator {
+            text-shadow: 0 0 20px rgba(0, 0, 0, 0.9),
+                         0 0 40px rgba(0, 0, 0, 0.8),
+                         2px 2px 4px rgba(0, 0, 0, 1),
+                         -1px -1px 0 rgba(255, 255, 255, 0.2);
         }
 
         /* Background slideshow */
@@ -139,6 +181,7 @@ $unsplash_topics = isset($pwc_options['unsplash_topics']) ? $pwc_options['unspla
             transition: opacity 0.3s ease-in-out, transform 0.3s ease-in-out;
         }
 
+        /* Fade animation (default) */
         .digit-value.fade-out {
             opacity: 0;
             transform: translateY(-20px);
@@ -147,6 +190,50 @@ $unsplash_topics = isset($pwc_options['unsplash_topics']) ? $pwc_options['unspla
         .digit-value.fade-in {
             opacity: 1;
             transform: translateY(0);
+        }
+
+        /* Slide up animation */
+        .digit-value.slide-up-out {
+            opacity: 0;
+            transform: translateY(-100%);
+        }
+
+        .digit-value.slide-up-in {
+            opacity: 1;
+            transform: translateY(0);
+        }
+
+        /* Slide down animation */
+        .digit-value.slide-down-out {
+            opacity: 0;
+            transform: translateY(100%);
+        }
+
+        .digit-value.slide-down-in {
+            opacity: 1;
+            transform: translateY(0);
+        }
+
+        /* Flip animation */
+        .digit-value.flip-out {
+            opacity: 0;
+            transform: rotateX(90deg);
+        }
+
+        .digit-value.flip-in {
+            opacity: 1;
+            transform: rotateX(0deg);
+        }
+
+        /* Scale animation */
+        .digit-value.scale-out {
+            opacity: 0;
+            transform: scale(0.5);
+        }
+
+        .digit-value.scale-in {
+            opacity: 1;
+            transform: scale(1);
         }
 
         .separator {
@@ -166,7 +253,7 @@ $unsplash_topics = isset($pwc_options['unsplash_topics']) ? $pwc_options['unspla
             opacity: 0.95;
             text-shadow: 0 3px 15px rgba(0, 0, 0, 0.6);
             letter-spacing: 0.05em;
-            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            font-family: <?php echo $selected_date_font; ?>;
         }
 
         /* Bottom info container */
@@ -329,7 +416,7 @@ $unsplash_topics = isset($pwc_options['unsplash_topics']) ? $pwc_options['unspla
         }
     </style>
 </head>
-<body>
+<body class="display-mode-<?php echo esc_attr($display_mode); ?>">
     <div class="background-slideshow" id="slideshow">
         <div class="background-image active" id="bg1"></div>
         <div class="background-image" id="bg2"></div>
@@ -377,14 +464,17 @@ $unsplash_topics = isset($pwc_options['unsplash_topics']) ? $pwc_options['unspla
         const SLIDE_INTERVAL = 15000; // 15 seconds per image
         const IMAGE_LOAD_TIMEOUT = 3000; // 3 seconds max to load images before fallback
         const UNSPLASH_TOPICS = <?php echo json_encode($unsplash_topics); ?>; // Topics from WordPress settings
+        const DIGIT_ANIMATION = <?php echo json_encode($digit_animation); ?>; // Digit animation style from settings
         let currentImageIndex = 0;
         let images = [];
         let currentImage = null;
         let useGradientFallback = false; // Track if we should skip to gradients
         const animationTypes = ['zoom-in', 'pan-left', 'pan-right'];
+        let isFetchingNewImages = false; // Prevent duplicate fetches
+        const REFRESH_THRESHOLD = 7; // Fetch new images when we reach image #7 of 10
 
         // Fetch images from Clock API
-        async function fetchUnsplashImages() {
+        async function fetchUnsplashImages(isInitialLoad = true) {
             try {
                 // Call Clock API endpoint with configured topics
                 const siteUrl = window.location.origin;
@@ -395,25 +485,52 @@ $unsplash_topics = isset($pwc_options['unsplash_topics']) ? $pwc_options['unspla
 
                     // Check if we got images
                     if (data.success && data.images && data.images.length > 0) {
-                        images = data.images;
-                        console.log(`Loaded ${images.length} images from Clock API (cached: ${data.cached})`);
+                        if (isInitialLoad) {
+                            images = data.images;
+                            console.log(`✓ Loaded ${images.length} images from Clock API (cached: ${data.cached})`);
+                        } else {
+                            // Background refresh - append new images
+                            const newImages = data.images.filter(newImg =>
+                                !images.some(existingImg => existingImg.id === newImg.id)
+                            );
+                            images = images.concat(newImages);
+                            console.log(`✓ Background refresh: Added ${newImages.length} new images (Total: ${images.length})`);
+                        }
                     } else {
                         console.log('Using fallback images - no images returned');
-                        useFallbackImages();
+                        if (isInitialLoad) {
+                            useFallbackImages();
+                        }
                     }
                 } else {
                     console.log('Using fallback images - API error');
-                    useFallbackImages();
+                    if (isInitialLoad) {
+                        useFallbackImages();
+                    }
                 }
             } catch (error) {
                 console.log('Using fallback images - fetch error:', error);
-                useFallbackImages();
+                if (isInitialLoad) {
+                    useFallbackImages();
+                }
             }
 
-            // Set first background
-            if (images.length > 0) {
+            // Set first background on initial load
+            if (isInitialLoad && images.length > 0) {
                 setBackgroundImage(0);
             }
+        }
+
+        // Background image refresh - fetch new batch when needed
+        async function backgroundImageRefresh() {
+            if (isFetchingNewImages || useGradientFallback) {
+                return; // Skip if already fetching or using gradients
+            }
+
+            isFetchingNewImages = true;
+            console.log('🔄 Fetching new images in background...');
+            await fetchUnsplashImages(false);
+            isFetchingNewImages = false;
         }
 
         // Fallback images - using beautiful gradients (instant loading, no external dependencies)
@@ -573,25 +690,61 @@ $unsplash_topics = isset($pwc_options['unsplash_topics']) ? $pwc_options['unspla
             setInterval(() => {
                 currentImageIndex = (currentImageIndex + 1) % images.length;
                 setBackgroundImage(currentImageIndex);
+
+                // Trigger background refresh when reaching threshold
+                // If we're at image #7 and have exactly 10 images, fetch more
+                if (currentImageIndex === REFRESH_THRESHOLD && images.length <= 10 && !useGradientFallback) {
+                    backgroundImageRefresh();
+                }
             }, SLIDE_INTERVAL);
         }
 
-        // Update individual digit with fade effect
+        // Update individual digit with configurable animation
         function updateDigit(elementId, newValue) {
             const element = document.getElementById(elementId);
             const currentSpan = element.querySelector('.digit-value');
             const currentValue = currentSpan.textContent;
 
             if (currentValue !== newValue) {
-                // Fade out current value
-                currentSpan.classList.remove('fade-in');
-                currentSpan.classList.add('fade-out');
+                // Remove all possible animation classes
+                const animationClasses = ['fade-in', 'fade-out', 'slide-up-in', 'slide-up-out',
+                    'slide-down-in', 'slide-down-out', 'flip-in', 'flip-out', 'scale-in', 'scale-out'];
+                currentSpan.classList.remove(...animationClasses);
 
-                // Create new span with new value
+                // Determine animation classes based on DIGIT_ANIMATION setting
+                let outClass, inClass;
+                switch(DIGIT_ANIMATION) {
+                    case 'slide-up':
+                        outClass = 'slide-up-out';
+                        inClass = 'slide-up-in';
+                        break;
+                    case 'slide-down':
+                        outClass = 'slide-down-out';
+                        inClass = 'slide-down-in';
+                        break;
+                    case 'flip':
+                        outClass = 'flip-out';
+                        inClass = 'flip-in';
+                        break;
+                    case 'scale':
+                        outClass = 'scale-out';
+                        inClass = 'scale-in';
+                        break;
+                    case 'fade':
+                    default:
+                        outClass = 'fade-out';
+                        inClass = 'fade-in';
+                        break;
+                }
+
+                // Animate out
+                currentSpan.classList.add(outClass);
+
+                // Animate in with new value
                 setTimeout(() => {
                     currentSpan.textContent = newValue;
-                    currentSpan.classList.remove('fade-out');
-                    currentSpan.classList.add('fade-in');
+                    currentSpan.classList.remove(outClass);
+                    currentSpan.classList.add(inClass);
                 }, 150);
             }
         }
