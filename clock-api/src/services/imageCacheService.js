@@ -131,8 +131,8 @@ export async function downloadAndCacheImages(query = 'nature,landscape') {
           INSERT INTO cached_images (
             id, filename, file_size, file_path, quality,
             photographer, photographer_url, unsplash_url, unsplash_id,
-            width, height, color, description, download_url, download_location
-          ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            width, height, color, description, download_url, download_location, topics
+          ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         `).run(
           imageId,
           filename,
@@ -148,7 +148,8 @@ export async function downloadAndCacheImages(query = 'nature,landscape') {
           image.color,
           image.description,
           downloadUrl,
-          image.downloadLocation
+          image.downloadLocation,
+          query
         );
 
         downloadedCount++;
