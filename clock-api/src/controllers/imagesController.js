@@ -1,36 +1,38 @@
 import { fetchUnsplashImages, getCacheStats, clearCache, triggerUnsplashDownload } from '../services/unsplashService.js';
 import { getCachedImages, getCacheStats as getImageCacheStats, downloadAndCacheImages, cleanupOldImages, deleteCachedImage } from '../services/imageCacheService.js';
+import { getRandomImagesFromPool, getPoolStats, refreshImagePool } from '../services/imagePoolService.js';
 import { asyncHandler } from '../middleware/errorHandler.js';
 
 /**
- * Get images (prioritize cached local images)
+ * Get images (from pool with fallback to Unsplash)
  * GET /api/v1/images
  */
 export const getImages = asyncHandler(async (req, res) => {
   const count = Math.min(parseInt(req.query.count) || 10, 30); // Max 30 images
 
-  // Try to get cached images first
-  const cachedImages = getCachedImages(count);
+  // Try to get images from pool first
+  const poolResult = getRandomImagesFromPool(count);
 
-  if (cachedImages && cachedImages.length > 0) {
-    console.log(`✓ Serving ${cachedImages.length} cached images from local storage`);
+  if (poolResult.success && poolResult.data.length > 0) {
+    console.log(`✓ Serving ${poolResult.data.length} images from pool (${poolResult.poolSize} total in pool)`);
     return res.json({
       success: true,
-      count: cachedImages.length,
-      cached: true,
-      images: cachedImages
+      count: poolResult.data.length,
+      source: 'pool',
+      poolSize: poolResult.poolSize,
+      images: poolResult.data
     });
   }
 
-  // Fallback to Unsplash if no cached images
-  console.log('No cached images available, fetching from Unsplash...');
+  // Fallback to direct Unsplash fetch if pool is empty
+  console.log('Pool is empty, fetching directly from Unsplash...');
   const query = req.query.query || 'nature,landscape';
   const result = await fetchUnsplashImages(count, query);
 
   res.json({
     success: true,
     count: result.data.length,
-    cached: false,
+    source: 'unsplash',
     images: result.data
   });
 });
@@ -243,5 +245,37 @@ export const deleteImage = asyncHandler(async (req, res) => {
     success: true,
     message: result.message,
     freedSpace: result.freedSpace
+  });
+});
+
+/**
+ * Get image pool statistics
+ * GET /api/v1/images/pool-stats
+ */
+export const getImagePoolStats = asyncHandler(async (req, res) => {
+  const stats = getPoolStats();
+
+  res.json({
+    success: true,
+    pool: stats
+  });
+});
+
+/**
+ * Manually refresh image pool
+ * POST /api/v1/images/refresh-pool
+ */
+export const refreshPool = asyncHandler(async (req, res) => {
+  console.log('Manual pool refresh triggered');
+
+  const query = req.query.query || req.body.query || 'nature,landscape';
+  const result = await refreshImagePool(query);
+
+  res.json({
+    success: result.success,
+    message: result.success ? 'Image pool refreshed successfully' : 'Pool refresh failed',
+    totalImages: result.totalImages,
+    newImages: result.newImages,
+    lastFetchTime: result.lastFetchTime
   });
 });

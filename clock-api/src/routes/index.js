@@ -1,5 +1,5 @@
 import express from 'express';
-import { getImages, getCacheStatistics, clearImageCache, triggerUnsplashDownloadTracking, downloadImage, refreshImageCache, getImageCacheInfo, deleteImage } from '../controllers/imagesController.js';
+import { getImages, getCacheStatistics, clearImageCache, triggerUnsplashDownloadTracking, downloadImage, refreshImageCache, getImageCacheInfo, deleteImage, getImagePoolStats, refreshPool } from '../controllers/imagesController.js';
 import { trackView, trackDownload, getStats } from '../controllers/trackingController.js';
 import { optionalApiKey, authenticateApiKey } from '../middleware/auth.js';
 import { generalLimiter, trackingLimiter, statsLimiter, adminLimiter } from '../middleware/rateLimiter.js';
@@ -26,8 +26,10 @@ router.get('/images', generalLimiter, optionalApiKey, getImages);
 router.get('/images/download', generalLimiter, downloadImage);
 router.get('/images/cache-stats', adminLimiter, authenticateApiKey, getCacheStatistics);
 router.get('/images/cache-info', adminLimiter, authenticateApiKey, getImageCacheInfo);
+router.get('/images/pool-stats', adminLimiter, authenticateApiKey, getImagePoolStats);
 router.post('/images/clear-cache', adminLimiter, authenticateApiKey, clearImageCache);
 router.post('/images/refresh-cache', adminLimiter, authenticateApiKey, refreshImageCache);
+router.post('/images/refresh-pool', adminLimiter, authenticateApiKey, refreshPool);
 router.post('/images/unsplash-download', trackingLimiter, triggerUnsplashDownloadTracking);
 
 // Dynamic routes (must come after specific routes)

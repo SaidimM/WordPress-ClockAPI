@@ -1,5 +1,5 @@
 import cron from 'node-cron';
-import { downloadAndCacheImages } from './imageCacheService.js';
+import { refreshImagePool, initializePool } from './imagePoolService.js';
 
 /**
  * Initialize scheduled tasks
@@ -7,14 +7,19 @@ import { downloadAndCacheImages } from './imageCacheService.js';
 export function initScheduler() {
   console.log('Initializing scheduler...');
 
-  // Run image cache refresh every 12 hours at minute 0
+  // Initialize image pool on startup
+  setTimeout(async () => {
+    await initializePool();
+  }, 2000);
+
+  // Run image pool refresh every 12 hours at minute 0
   // Cron pattern: "0 */12 * * *" means "at minute 0 past every 12th hour"
   const task = cron.schedule('0 */12 * * *', async () => {
-    console.log('🔄 Running scheduled image cache refresh...');
+    console.log('🔄 Running scheduled image pool refresh...');
     try {
-      const result = await downloadAndCacheImages();
+      const result = await refreshImagePool();
       if (result.success) {
-        console.log(`✓ Scheduled refresh completed: ${result.downloaded} images downloaded, ${result.failed} failed`);
+        console.log(`✓ Scheduled refresh completed: ${result.totalImages} total images (${result.newImages} new)`);
       } else {
         console.log(`✗ Scheduled refresh failed: ${result.error || result.message}`);
       }
@@ -26,20 +31,7 @@ export function initScheduler() {
     timezone: "UTC"
   });
 
-  console.log('✓ Scheduler initialized: Image cache refresh every 12 hours');
-
-  // Optional: Run initial cache refresh on startup if cache is empty
-  // Uncomment the following lines if you want to auto-populate cache on startup
-  /*
-  setTimeout(async () => {
-    const { getCacheStats } = await import('./imageCacheService.js');
-    const stats = getCacheStats();
-    if (stats.imageCount === 0) {
-      console.log('Cache is empty, running initial image download...');
-      await downloadAndCacheImages();
-    }
-  }, 5000);
-  */
+  console.log('✓ Scheduler initialized: Image pool refresh every 12 hours');
 
   return task;
 }
