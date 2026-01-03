@@ -878,56 +878,55 @@ class ProfessionalWorldClockPlugin {
      * Render Gallery Tab
      */
     private function render_gallery_tab() {
-        // Handle manual cache refresh action
-        if (isset($_POST['refresh_cache']) && check_admin_referer('pwc_refresh_cache')) {
-            $query = isset($_POST['cache_query']) ? sanitize_text_field($_POST['cache_query']) : 'nature,landscape';
+        // Handle manual pool refresh action
+        if (isset($_POST['refresh_pool']) && check_admin_referer('pwc_refresh_pool')) {
+            $query = isset($_POST['pool_query']) ? sanitize_text_field($_POST['pool_query']) : 'nature,landscape';
 
             // Save the keywords for future use
             $options = get_option('pwc_options', array());
             $options['saved_keywords'] = $query;
             update_option('pwc_options', $options);
 
-            $result = $this->call_clock_api('/images/refresh-cache?query=' . urlencode($query), 'POST', null, true);
+            $result = $this->call_clock_api('/images/refresh-pool?query=' . urlencode($query), 'POST', null, true);
 
             if (isset($result['success']) && $result['success']) {
-                echo '<div class="notice notice-success"><p>Cache refreshed successfully! Downloaded: ' . esc_html($result['downloaded'] ?? 0) . ', Failed: ' . esc_html($result['failed'] ?? 0) . '</p></div>';
+                echo '<div class="notice notice-success"><p>Pool refreshed successfully! Total: ' . esc_html($result['totalImages'] ?? 0) . ' images, New: ' . esc_html($result['newImages'] ?? 0) . '</p></div>';
             } else {
-                echo '<div class="notice notice-error"><p>Failed to refresh cache: ' . esc_html($result['message'] ?? 'Unknown error') . '</p></div>';
+                echo '<div class="notice notice-error"><p>Failed to refresh pool: ' . esc_html($result['message'] ?? 'Unknown error') . '</p></div>';
             }
         }
 
-        $cache_info = $this->call_clock_api('/images/cache-info', 'GET', null, true);
+        $pool_info = $this->call_clock_api('/images/pool-stats', 'GET', null, true);
 
-        if (isset($cache_info['error'])) {
-            echo '<div class="notice notice-error"><p>Error fetching cache info: ' . esc_html($cache_info['error']) . '</p></div>';
+        if (isset($pool_info['error'])) {
+            echo '<div class="notice notice-error"><p>Error fetching pool info: ' . esc_html($pool_info['error']) . '</p></div>';
             return;
         }
 
-        $cache = $cache_info['cache'] ?? array();
-        $site_url = get_site_url();
+        $pool = $pool_info['pool'] ?? array();
 
         // Get saved keywords or use default
         $options = get_option('pwc_options', array());
         $saved_keywords = isset($options['saved_keywords']) ? $options['saved_keywords'] : 'nature,landscape';
 
-        // Get all images
+        // Get all images from pool
         $images_response = $this->call_clock_api('/images?count=30');
         $images = $images_response['images'] ?? array();
         ?>
         <div class="card" style="max-width: 1400px; margin-top: 20px;">
-            <h2>Cached Image Gallery</h2>
+            <h2>Image Pool Gallery</h2>
 
-            <!-- Manual Cache Refresh -->
+            <!-- Manual Pool Refresh -->
             <div style="background: #f8f9fa; padding: 20px; border-radius: 8px; margin-bottom: 20px; border-left: 4px solid #2271b1;">
-                <h3 style="margin-top: 0;">Download New Images</h3>
-                <p>Manually download and cache new images from Unsplash. This will fetch up to 10 new images based on your search topics.</p>
+                <h3 style="margin-top: 0;">Refresh Image Pool</h3>
+                <p>Manually refresh the image pool from Unsplash. This will fetch ~100 new images based on your search topics and add them to the pool.</p>
                 <form method="post" style="display: flex; gap: 10px; align-items: flex-start; flex-wrap: wrap;">
-                    <?php wp_nonce_field('pwc_refresh_cache'); ?>
+                    <?php wp_nonce_field('pwc_refresh_pool'); ?>
                     <div style="flex: 1; min-width: 250px;">
-                        <label for="cache_query" style="display: block; margin-bottom: 5px; font-weight: 600;">Search Topics:</label>
+                        <label for="pool_query" style="display: block; margin-bottom: 5px; font-weight: 600;">Search Topics:</label>
                         <input type="text"
-                               id="cache_query"
-                               name="cache_query"
+                               id="pool_query"
+                               name="pool_query"
                                value="<?php echo esc_attr($saved_keywords); ?>"
                                placeholder="ocean,sunset,mountains"
                                style="width: 100%; padding: 8px; border: 1px solid #ddd; border-radius: 4px;"
@@ -937,41 +936,48 @@ class ProfessionalWorldClockPlugin {
                         </p>
                     </div>
                     <div style="padding-top: 27px;">
-                        <button type="submit" name="refresh_cache" class="button button-primary" style="height: 38px;">
-                            <span class="dashicons dashicons-download" style="vertical-align: middle; margin-right: 5px;"></span>
-                            Download Images
+                        <button type="submit" name="refresh_pool" class="button button-primary" style="height: 38px;">
+                            <span class="dashicons dashicons-update" style="vertical-align: middle; margin-right: 5px;"></span>
+                            Refresh Pool
                         </button>
                     </div>
                 </form>
                 <p style="margin-top: 10px; color: #666; font-size: 12px;">
-                    <strong>Note:</strong> Check server logs for download progress.
+                    <strong>Note:</strong> Pool automatically refreshes every 12 hours. Manual refresh adds new images to the existing pool.
                 </p>
             </div>
 
-            <!-- Cache Statistics -->
+            <!-- Pool Statistics -->
             <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 15px; margin: 20px 0; padding: 20px; background: #f8f9fa; border-radius: 8px;">
                 <div>
-                    <strong style="color: #666;">Total Images:</strong>
+                    <strong style="color: #666;">Pool Size:</strong>
                     <p style="font-size: 24px; margin: 5px 0; font-weight: bold; color: #2271b1;">
-                        <?php echo number_format($cache['imageCount'] ?? 0); ?>
+                        <?php echo number_format($pool['poolSize'] ?? 0); ?>
                     </p>
                 </div>
                 <div>
-                    <strong style="color: #666;">Total Size:</strong>
-                    <p style="font-size: 24px; margin: 5px 0; font-weight: bold; color: #2271b1;">
-                        <?php echo number_format(($cache['totalSize'] ?? 0) / 1024 / 1024, 2); ?> MB
+                    <strong style="color: #666;">Last Refresh:</strong>
+                    <p style="font-size: 16px; margin: 5px 0; font-weight: bold; color: #2271b1;">
+                        <?php
+                        if (!empty($pool['lastFetchTime'])) {
+                            $time = strtotime($pool['lastFetchTime']);
+                            echo esc_html(human_time_diff($time, current_time('timestamp')) . ' ago');
+                        } else {
+                            echo 'Never';
+                        }
+                        ?>
                     </p>
                 </div>
                 <div>
-                    <strong style="color: #666;">Average Size:</strong>
+                    <strong style="color: #666;">Target Size:</strong>
                     <p style="font-size: 24px; margin: 5px 0; font-weight: bold; color: #2271b1;">
-                        <?php echo number_format(($cache['avgSize'] ?? 0) / 1024 / 1024, 2); ?> MB
+                        <?php echo number_format($pool['config']['targetSize'] ?? 100); ?>
                     </p>
                 </div>
                 <div>
-                    <strong style="color: #666;">Storage Used:</strong>
-                    <p style="font-size: 24px; margin: 5px 0; font-weight: bold; color: #2271b1;">
-                        <?php echo number_format($cache['usagePercent'] ?? 0, 1); ?>%
+                    <strong style="color: #666;">Status:</strong>
+                    <p style="font-size: 16px; margin: 5px 0; font-weight: bold; color: #2271b1;">
+                        <?php echo ($pool['isFetching'] ?? false) ? 'Refreshing...' : 'Ready'; ?>
                     </p>
                 </div>
             </div>
@@ -982,7 +988,7 @@ class ProfessionalWorldClockPlugin {
                     <?php foreach ($images as $image): ?>
                         <div style="border: 1px solid #ddd; border-radius: 8px; overflow: hidden; background: #fff; box-shadow: 0 2px 4px rgba(0,0,0,0.1);">
                             <div style="position: relative; padding-bottom: 60%; overflow: hidden; background: #f0f0f0;">
-                                <img src="<?php echo esc_url($site_url . $image['url']); ?>"
+                                <img src="<?php echo esc_url($image['url']); ?>"
                                      alt="<?php echo esc_attr($image['description'] ?? 'Image'); ?>"
                                      style="position: absolute; top: 0; left: 0; width: 100%; height: 100%; object-fit: cover;"
                                      loading="lazy">
@@ -999,14 +1005,11 @@ class ProfessionalWorldClockPlugin {
                                 <p style="margin: 0 0 8px 0; color: #666; font-size: 12px;">
                                     <strong>Dimensions:</strong> <?php echo esc_html($image['width'] ?? 0); ?> × <?php echo esc_html($image['height'] ?? 0); ?>
                                 </p>
-                                <p style="margin: 0 0 8px 0; color: #666; font-size: 12px;">
-                                    <strong>Downloads:</strong> <?php echo number_format($image['downloadCount'] ?? 0); ?>
-                                </p>
                                 <p style="margin: 0 0 12px 0; color: #666; font-size: 12px;">
                                     <strong>ID:</strong> <code style="background: #f3f4f6; padding: 2px 6px; border-radius: 3px; font-size: 11px;"><?php echo esc_html(substr($image['id'] ?? '', 0, 12)); ?>...</code>
                                 </p>
                                 <div style="display: flex; gap: 8px; flex-wrap: wrap;">
-                                    <a href="<?php echo esc_url($site_url . $image['url']); ?>"
+                                    <a href="<?php echo esc_url($image['url']); ?>"
                                        target="_blank"
                                        class="button button-small"
                                        style="flex: 1; text-align: center;">
@@ -1021,72 +1024,16 @@ class ProfessionalWorldClockPlugin {
                                     </a>
                                     <?php endif; ?>
                                 </div>
-                                <button onclick="deleteImage('<?php echo esc_js($image['id']); ?>', '<?php echo esc_js($image['photographer']); ?>')"
-                                        class="button button-small button-link-delete"
-                                        style="width: 100%; margin-top: 8px; color: #b32d2e;">
-                                    Delete Image
-                                </button>
                             </div>
                         </div>
                     <?php endforeach; ?>
                 <?php else: ?>
                     <div style="grid-column: 1 / -1; text-align: center; padding: 40px; color: #666;">
-                        <p>No cached images found. Images will be downloaded automatically by the scheduled task.</p>
+                        <p>No images in pool. Pool will be populated automatically on next refresh.</p>
                     </div>
                 <?php endif; ?>
             </div>
-
-            <div style="margin-top: 30px; padding-top: 20px; border-top: 1px solid #ddd;">
-                <h3>Cache Information</h3>
-                <p><strong>Oldest Image:</strong> <?php echo esc_html($cache['oldestImage'] ?? 'N/A'); ?></p>
-                <p><strong>Newest Image:</strong> <?php echo esc_html($cache['newestImage'] ?? 'N/A'); ?></p>
-                <p><strong>Max Storage:</strong> <?php echo number_format(($cache['maxStorage'] ?? 0) / 1024 / 1024 / 1024, 2); ?> GB</p>
-            </div>
         </div>
-
-        <script>
-        function deleteImage(imageId, photographer) {
-            // Confirm deletion
-            if (!confirm('Are you sure you want to delete this image by ' + photographer + '?\n\nThis action cannot be undone.')) {
-                return;
-            }
-
-            // Show loading state
-            const button = event.target;
-            const originalText = button.textContent;
-            button.disabled = true;
-            button.textContent = 'Deleting...';
-
-            // Call API to delete image
-            fetch('<?php echo esc_js($this->get_clock_api_url()); ?>/images/' + imageId, {
-                method: 'DELETE',
-                headers: {
-                    'X-API-Key': 'clock_api_secure_key_2025'
-                }
-            })
-            .then(response => response.json())
-            .then(data => {
-                if (data.success) {
-                    // Show success message
-                    alert('Image deleted successfully!');
-                    // Reload page to refresh gallery
-                    window.location.reload();
-                } else {
-                    // Show error
-                    alert('Failed to delete image: ' + (data.message || 'Unknown error'));
-                    // Restore button
-                    button.disabled = false;
-                    button.textContent = originalText;
-                }
-            })
-            .catch(error => {
-                alert('Error deleting image: ' + error.message);
-                // Restore button
-                button.disabled = false;
-                button.textContent = originalText;
-            });
-        }
-        </script>
         <?php
     }
 
