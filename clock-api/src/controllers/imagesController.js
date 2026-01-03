@@ -1,5 +1,4 @@
-import { fetchUnsplashImages, getCacheStats, clearCache, triggerUnsplashDownload } from '../services/unsplashService.js';
-import { getCachedImages, getCacheStats as getImageCacheStats, downloadAndCacheImages, cleanupOldImages, deleteCachedImage } from '../services/imageCacheService.js';
+import { fetchUnsplashImages, triggerUnsplashDownload } from '../services/unsplashService.js';
 import { getRandomImagesFromPool, getPoolStats, refreshImagePool } from '../services/imagePoolService.js';
 import { asyncHandler } from '../middleware/errorHandler.js';
 
@@ -168,84 +167,6 @@ export const downloadImage = asyncHandler(async (req, res) => {
       res.end();
     }
   }
-});
-
-/**
- * Refresh image cache - download new images
- * POST /api/v1/images/refresh-cache
- * Query params: ?query=ocean,sunset (optional)
- */
-export const refreshImageCache = asyncHandler(async (req, res) => {
-  console.log('Manual cache refresh triggered');
-
-  // Get search query from query params or body
-  const query = req.query.query || req.body.query || 'nature,landscape';
-
-  const result = await downloadAndCacheImages(query);
-
-  res.json({
-    success: result.success,
-    message: result.success ? 'Image cache refreshed successfully' : 'Cache refresh failed',
-    query: query,
-    downloaded: result.downloaded,
-    failed: result.failed
-  });
-});
-
-/**
- * Get image cache statistics
- * GET /api/v1/images/cache-info
- */
-export const getImageCacheInfo = asyncHandler(async (req, res) => {
-  const stats = getImageCacheStats();
-
-  res.json({
-    success: true,
-    cache: stats
-  });
-});
-
-/**
- * Delete a cached image
- * DELETE /api/v1/images/:imageId
- */
-export const deleteImage = asyncHandler(async (req, res) => {
-  console.log('DELETE /images/:imageId called');
-  console.log('Request method:', req.method);
-  console.log('Request params:', req.params);
-  console.log('Request URL:', req.url);
-  console.log('Request path:', req.path);
-
-  const { imageId } = req.params;
-
-  console.log('Extracted imageId:', imageId);
-
-  if (!imageId) {
-    console.log('ERROR: Image ID is missing');
-    return res.status(400).json({
-      success: false,
-      message: 'Image ID is required'
-    });
-  }
-
-  console.log('Attempting to delete image:', imageId);
-  const result = deleteCachedImage(imageId);
-  console.log('Delete result:', result);
-
-  if (!result.success) {
-    console.log('Delete failed:', result.message);
-    return res.status(404).json({
-      success: false,
-      message: result.message
-    });
-  }
-
-  console.log('Delete successful');
-  res.json({
-    success: true,
-    message: result.message,
-    freedSpace: result.freedSpace
-  });
 });
 
 /**

@@ -97,11 +97,11 @@ clock-api/
 ├── src/
 │   ├── server.js                      # Main entry point
 │   ├── controllers/
-│   │   ├── imagesController.js        # Image fetching & caching
+│   │   ├── imagesController.js        # Image fetching & serving
 │   │   └── trackingController.js      # Analytics tracking
 │   ├── services/
 │   │   ├── unsplashService.js         # Unsplash API integration
-│   │   ├── imageCacheService.js       # Local image caching
+│   │   ├── imagePoolService.js        # In-memory image pool
 │   │   └── scheduler.js               # Automated tasks (every 12h)
 │   ├── middleware/
 │   │   ├── errorHandler.js            # Global error handling
@@ -114,8 +114,7 @@ clock-api/
 │   │   └── schema.sql                 # Database schema
 │   └── utils/config.js                # Configuration
 ├── data/
-│   ├── clock.db                       # SQLite database
-│   └── images/                        # Cached images
+│   └── clock.db                       # SQLite database
 └── Dockerfile                         # Multi-stage build
 ```
 
@@ -154,7 +153,6 @@ clock-api/
 - Security headers (HSTS, X-Frame-Options, CSP, etc.)
 - Reverse proxy rules:
   - `/api/clock/*` → Clock API (port 3000)
-  - `/cache/images/*` → Volume-mounted cache directory
   - `/*` → WordPress (port 80)
 - CORS headers for API endpoints
 
@@ -197,8 +195,8 @@ clock-api/
 | File | Purpose |
 |------|---------|
 | `clock-api/src/server.js` | Clock API entry point |
-| `clock-api/src/services/imageCacheService.js` | Image download and caching logic |
-| `clock-api/src/services/scheduler.js` | Automated image refresh tasks |
+| `clock-api/src/services/imagePoolService.js` | In-memory image pool management |
+| `clock-api/src/services/scheduler.js` | Automated image pool refresh (every 12h) |
 | `wordpress/plugins/custom-clock/clock-template.php` | Clock UI template |
 | `wordpress/plugins/custom-clock/admin/tabs/image-gallery.php` | Admin gallery UI |
 
