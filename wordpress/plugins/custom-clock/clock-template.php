@@ -444,7 +444,9 @@ $clock_font = isset($pwc_options['clock_font']) ? $pwc_options['clock_font'] : '
         let useGradientFallback = false; // Track if we should skip to gradients
         const animationTypes = ['zoom-in', 'pan-left', 'pan-right'];
         let isFetchingNewImages = false; // Prevent duplicate fetches
-        const REFRESH_THRESHOLD = 7; // Fetch new images when we reach image #7 of 10
+        const INITIAL_IMAGE_COUNT = 50; // Fetch 50 images initially
+        const REFRESH_IMAGE_COUNT = 30; // Fetch 30 new images on each refresh
+        const MAX_CACHED_IMAGES = 100; // Keep max 100 images in memory
         let idleTimer = null;
         let isIdle = false;
 
@@ -463,7 +465,8 @@ $clock_font = isset($pwc_options['clock_font']) ? $pwc_options['clock_font'] : '
             try {
                 // Call Clock API endpoint with configured topics
                 const siteUrl = window.location.origin;
-                const response = await fetch(`${siteUrl}/api/clock/images?count=10&query=${encodeURIComponent(UNSPLASH_TOPICS)}`);
+                const count = isInitialLoad ? INITIAL_IMAGE_COUNT : REFRESH_IMAGE_COUNT;
+                const response = await fetch(`${siteUrl}/api/clock/images?count=${count}&query=${encodeURIComponent(UNSPLASH_TOPICS)}`);
 
                 if (response.ok) {
                     const data = await response.json();
@@ -474,11 +477,19 @@ $clock_font = isset($pwc_options['clock_font']) ? $pwc_options['clock_font'] : '
                             images = data.images;
                             console.log(`✓ Loaded ${images.length} images from Clock API (cached: ${data.cached})`);
                         } else {
-                            // Background refresh - append new images
+                            // Background refresh - append new images and limit total
                             const newImages = data.images.filter(newImg =>
                                 !images.some(existingImg => existingImg.id === newImg.id)
                             );
                             images = images.concat(newImages);
+
+                            // Keep only MAX_CACHED_IMAGES most recent images
+                            if (images.length > MAX_CACHED_IMAGES) {
+                                const removeCount = images.length - MAX_CACHED_IMAGES;
+                                images = images.slice(removeCount);
+                                currentImageIndex = Math.max(0, currentImageIndex - removeCount);
+                            }
+
                             console.log(`✓ Background refresh: Added ${newImages.length} new images (Total: ${images.length})`);
                         }
                     } else {
@@ -676,9 +687,11 @@ $clock_font = isset($pwc_options['clock_font']) ? $pwc_options['clock_font'] : '
                 currentImageIndex = (currentImageIndex + 1) % images.length;
                 setBackgroundImage(currentImageIndex);
 
-                // Trigger background refresh when reaching threshold
-                // If we're at image #7 and have exactly 10 images, fetch more
-                if (currentImageIndex === REFRESH_THRESHOLD && images.length <= 10 && !useGradientFallback) {
+                // Trigger background refresh when we've cycled through all images
+                // Fetch new images when reaching the last quarter of images
+                const refreshPoint = Math.floor(images.length * 0.75);
+                if (currentImageIndex === refreshPoint && !useGradientFallback && !isFetchingNewImages) {
+                    console.log(`🔄 Reached 75% of images (${currentImageIndex}/${images.length}), fetching more...`);
                     backgroundImageRefresh();
                 }
             }, SLIDE_INTERVAL);
