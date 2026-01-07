@@ -12,9 +12,9 @@ export function initScheduler() {
     await initializePool();
   }, 2000);
 
-  // Run image pool refresh every 12 hours at minute 0
-  // Cron pattern: "0 */12 * * *" means "at minute 0 past every 12th hour"
-  const task = cron.schedule('0 */12 * * *', async () => {
+  // Run image pool refresh every hour at minute 0
+  // Cron pattern: "0 * * * *" means "at minute 0 past every hour"
+  const task = cron.schedule('0 * * * *', async () => {
     console.log('🔄 Running scheduled image pool refresh...');
     try {
       const result = await refreshImagePool();
@@ -31,7 +31,7 @@ export function initScheduler() {
     timezone: "UTC"
   });
 
-  console.log('✓ Scheduler initialized: Image pool refresh every 12 hours');
+  console.log('✓ Scheduler initialized: Image pool refresh every hour');
 
   return task;
 }

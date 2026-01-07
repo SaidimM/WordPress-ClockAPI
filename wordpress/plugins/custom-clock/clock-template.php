@@ -3,9 +3,6 @@
 $pwc_options = get_option('pwc_options', array());
 $unsplash_topics = isset($pwc_options['unsplash_topics']) ? $pwc_options['unsplash_topics'] : 'nature,landscape';
 $clock_font = isset($pwc_options['clock_font']) ? $pwc_options['clock_font'] : 'Orbitron';
-$date_font = isset($pwc_options['date_font']) ? $pwc_options['date_font'] : 'System';
-$digit_animation = isset($pwc_options['digit_animation']) ? $pwc_options['digit_animation'] : 'fade';
-$display_mode = isset($pwc_options['display_mode']) ? $pwc_options['display_mode'] : 'normal';
 ?>
 <!DOCTYPE html>
 <html lang="en">
@@ -34,13 +31,7 @@ $display_mode = isset($pwc_options['display_mode']) ? $pwc_options['display_mode
             'Audiowide' => "'Audiowide', sans-serif",
             'Iceland' => "'Iceland', sans-serif"
         );
-        $date_font_families = array(
-            'System' => "-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif",
-            'Orbitron' => "'Orbitron', monospace",
-            'Roboto' => "'Roboto', sans-serif"
-        );
         $selected_clock_font = isset($font_families[$clock_font]) ? $font_families[$clock_font] : $font_families['Orbitron'];
-        $selected_date_font = isset($date_font_families[$date_font]) ? $date_font_families[$date_font] : $date_font_families['System'];
         ?>
 
         body {
@@ -49,25 +40,6 @@ $display_mode = isset($pwc_options['display_mode']) ? $pwc_options['display_mode
             width: 100vw;
             height: 100vh;
             position: relative;
-        }
-
-        /* Display mode styles */
-        body.display-mode-dim .content-container {
-            opacity: 0.6;
-        }
-
-        body.display-mode-minimal .date-display,
-        body.display-mode-minimal .bottom-info {
-            opacity: 0;
-            pointer-events: none;
-        }
-
-        body.display-mode-high-contrast .digit-value,
-        body.display-mode-high-contrast .separator {
-            text-shadow: 0 0 20px rgba(0, 0, 0, 0.9),
-                         0 0 40px rgba(0, 0, 0, 0.8),
-                         2px 2px 4px rgba(0, 0, 0, 1),
-                         -1px -1px 0 rgba(255, 255, 255, 0.2);
         }
 
         /* Background slideshow */
@@ -416,7 +388,7 @@ $display_mode = isset($pwc_options['display_mode']) ? $pwc_options['display_mode
         }
     </style>
 </head>
-<body class="display-mode-<?php echo esc_attr($display_mode); ?>">
+<body>
     <div class="background-slideshow" id="slideshow">
         <div class="background-image active" id="bg1"></div>
         <div class="background-image" id="bg2"></div>
@@ -464,7 +436,8 @@ $display_mode = isset($pwc_options['display_mode']) ? $pwc_options['display_mode
         const SLIDE_INTERVAL = 15000; // 15 seconds per image
         const IMAGE_LOAD_TIMEOUT = 3000; // 3 seconds max to load images before fallback
         const UNSPLASH_TOPICS = <?php echo json_encode($unsplash_topics); ?>; // Topics from WordPress settings
-        const DIGIT_ANIMATION = <?php echo json_encode($digit_animation); ?>; // Digit animation style from settings
+        const IDLE_TIMEOUT = 20000; // 20 seconds idle before transparency
+        const FONT_CHANGE_INTERVAL = 3600000; // 1 hour in milliseconds
         let currentImageIndex = 0;
         let images = [];
         let currentImage = null;
@@ -472,6 +445,18 @@ $display_mode = isset($pwc_options['display_mode']) ? $pwc_options['display_mode
         const animationTypes = ['zoom-in', 'pan-left', 'pan-right'];
         let isFetchingNewImages = false; // Prevent duplicate fetches
         const REFRESH_THRESHOLD = 7; // Fetch new images when we reach image #7 of 10
+        let idleTimer = null;
+        let isIdle = false;
+
+        // Available clock fonts
+        const clockFonts = [
+            "'Orbitron', monospace",
+            "'Roboto Mono', monospace",
+            "'Space Mono', monospace",
+            "'Rajdhani', sans-serif",
+            "'Audiowide', sans-serif",
+            "'Iceland', sans-serif"
+        ];
 
         // Fetch images from Clock API
         async function fetchUnsplashImages(isInitialLoad = true) {
@@ -711,31 +696,9 @@ $display_mode = isset($pwc_options['display_mode']) ? $pwc_options['display_mode
                     'slide-down-in', 'slide-down-out', 'flip-in', 'flip-out', 'scale-in', 'scale-out'];
                 currentSpan.classList.remove(...animationClasses);
 
-                // Determine animation classes based on DIGIT_ANIMATION setting
-                let outClass, inClass;
-                switch(DIGIT_ANIMATION) {
-                    case 'slide-up':
-                        outClass = 'slide-up-out';
-                        inClass = 'slide-up-in';
-                        break;
-                    case 'slide-down':
-                        outClass = 'slide-down-out';
-                        inClass = 'slide-down-in';
-                        break;
-                    case 'flip':
-                        outClass = 'flip-out';
-                        inClass = 'flip-in';
-                        break;
-                    case 'scale':
-                        outClass = 'scale-out';
-                        inClass = 'scale-in';
-                        break;
-                    case 'fade':
-                    default:
-                        outClass = 'fade-out';
-                        inClass = 'fade-in';
-                        break;
-                }
+                // Use fade animation
+                const outClass = 'fade-out';
+                const inClass = 'fade-in';
 
                 // Animate out
                 currentSpan.classList.add(outClass);
@@ -896,6 +859,49 @@ $display_mode = isset($pwc_options['display_mode']) ? $pwc_options['display_mode
         // Add download button event listener
         document.getElementById('download-button').addEventListener('click', downloadCurrentImage);
 
+        // Random font change
+        function changeClockFont() {
+            const randomFont = clockFonts[Math.floor(Math.random() * clockFonts.length)];
+            document.body.style.fontFamily = randomFont;
+            console.log('Clock font changed to:', randomFont);
+        }
+
+        // Idle detection - set transparency after inactivity
+        function resetIdleTimer() {
+            // Clear existing timer
+            if (idleTimer) {
+                clearTimeout(idleTimer);
+            }
+
+            // If currently idle, bring back to full opacity
+            if (isIdle) {
+                const contentContainer = document.querySelector('.content-container');
+                contentContainer.style.transition = 'opacity 0.5s ease-in-out';
+                contentContainer.style.opacity = '1';
+                isIdle = false;
+            }
+
+            // Set new timer
+            idleTimer = setTimeout(() => {
+                const contentContainer = document.querySelector('.content-container');
+                contentContainer.style.transition = 'opacity 1s ease-in-out';
+                contentContainer.style.opacity = '0.5';
+                isIdle = true;
+                console.log('Idle mode activated - clock transparency set to 50%');
+            }, IDLE_TIMEOUT);
+        }
+
+        // Track user activity
+        function initIdleDetection() {
+            // Listen to user interactions
+            ['mousemove', 'mousedown', 'keypress', 'scroll', 'touchstart', 'click'].forEach(event => {
+                document.addEventListener(event, resetIdleTimer, true);
+            });
+
+            // Start the idle timer
+            resetIdleTimer();
+        }
+
         // Double-tap/double-click to toggle fullscreen
         let lastTapTime = 0;
         const DOUBLE_TAP_DELAY = 300; // milliseconds
@@ -966,6 +972,12 @@ $display_mode = isset($pwc_options['display_mode']) ? $pwc_options['display_mode
         setInterval(updateClock, 1000);
         fetchUnsplashImages();
         startSlideshow();
+
+        // Initialize idle detection
+        initIdleDetection();
+
+        // Change clock font every hour
+        setInterval(changeClockFont, FONT_CHANGE_INTERVAL);
     </script>
 </body>
 </html>

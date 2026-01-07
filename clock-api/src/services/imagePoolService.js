@@ -6,10 +6,10 @@ let lastFetchTime = null;
 let isFetching = false;
 
 const POOL_CONFIG = {
-  targetSize: 100,        // Target pool size
+  targetSize: 200,        // Target pool size
   fetchBatchSize: 30,     // Fetch 30 images per batch (Unsplash limit)
-  minPoolSize: 20,        // Minimum pool size before refetch
-  maxPoolSize: 150        // Maximum pool size
+  minPoolSize: 50,        // Minimum pool size before refetch
+  maxPoolSize: 250        // Maximum pool size
 };
 
 /**
@@ -133,10 +133,10 @@ export function needsRefresh() {
     return true;
   }
 
-  // Refresh if last fetch was more than 12 hours ago
+  // Refresh if last fetch was more than 1 hour ago
   if (lastFetchTime) {
     const hoursSinceLastFetch = (Date.now() - lastFetchTime.getTime()) / (1000 * 60 * 60);
-    return hoursSinceLastFetch > 12;
+    return hoursSinceLastFetch > 1;
   }
 
   // Refresh if never fetched
