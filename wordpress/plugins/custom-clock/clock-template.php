@@ -218,6 +218,11 @@ $clock_font = isset($pwc_options['clock_font']) ? $pwc_options['clock_font'] : '
             height: clamp(90px, 18vw, 220px);
         }
 
+        /* Seconds separator with breathing effect */
+        .seconds-separator {
+            animation: breathe 1s ease-in-out infinite;
+        }
+
         /* Date display */
         .date-display {
             font-size: clamp(20px, 3vw, 36px);
@@ -337,6 +342,11 @@ $clock_font = isset($pwc_options['clock_font']) ? $pwc_options['clock_font'] : '
             to { transform: rotate(360deg); }
         }
 
+        @keyframes breathe {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.3; }
+        }
+
         @keyframes fadeIn {
             from {
                 opacity: 0;
@@ -353,6 +363,39 @@ $clock_font = isset($pwc_options['clock_font']) ? $pwc_options['clock_font'] : '
         }
 
         @media (max-width: 768px) {
+            /* Hide seconds on mobile - show only HH:MM */
+            .digital-clock .seconds-group,
+            .digital-clock .seconds-separator {
+                display: none;
+            }
+
+            /* Minute separator with breathing effect */
+            .minute-separator {
+                animation: breathe 1s ease-in-out infinite;
+            }
+
+            /* Adjust clock size for mobile */
+            .digit {
+                width: clamp(50px, 15vw, 120px);
+                height: clamp(75px, 22vw, 180px);
+            }
+
+            .digit-value {
+                font-size: clamp(60px, 18vw, 160px);
+            }
+
+            .separator {
+                font-size: clamp(60px, 18vw, 160px);
+                height: clamp(75px, 22vw, 180px);
+            }
+
+            /* Adjust date display for mobile */
+            .date-display {
+                font-size: clamp(16px, 4vw, 28px);
+                margin-top: 20px;
+            }
+
+            /* Bottom info adjustments */
             .bottom-info {
                 bottom: 15px;
                 left: 15px;
@@ -416,13 +459,13 @@ $clock_font = isset($pwc_options['clock_font']) ? $pwc_options['clock_font'] : '
                 <div class="digit" id="hour1"><span class="digit-value fade-in">0</span></div>
                 <div class="digit" id="hour2"><span class="digit-value fade-in">0</span></div>
             </div>
-            <div class="separator">:</div>
+            <div class="separator minute-separator">:</div>
             <div class="digit-group">
                 <div class="digit" id="minute1"><span class="digit-value fade-in">0</span></div>
                 <div class="digit" id="minute2"><span class="digit-value fade-in">0</span></div>
             </div>
-            <div class="separator">:</div>
-            <div class="digit-group">
+            <div class="separator seconds-separator">:</div>
+            <div class="digit-group seconds-group">
                 <div class="digit" id="second1"><span class="digit-value fade-in">0</span></div>
                 <div class="digit" id="second2"><span class="digit-value fade-in">0</span></div>
             </div>
@@ -444,9 +487,9 @@ $clock_font = isset($pwc_options['clock_font']) ? $pwc_options['clock_font'] : '
         let useGradientFallback = false; // Track if we should skip to gradients
         const animationTypes = ['zoom-in', 'pan-left', 'pan-right'];
         let isFetchingNewImages = false; // Prevent duplicate fetches
-        const INITIAL_IMAGE_COUNT = 50; // Fetch 50 images initially
-        const REFRESH_IMAGE_COUNT = 30; // Fetch 30 new images on each refresh
-        const MAX_CACHED_IMAGES = 100; // Keep max 100 images in memory
+        const INITIAL_IMAGE_COUNT = 150; // Increased from 50 to 150
+        const REFRESH_IMAGE_COUNT = 100; // Increased from 30 to 100
+        const MAX_CACHED_IMAGES = 300; // Increased from 100 to 300
         let idleTimer = null;
         let isIdle = false;
 
@@ -687,11 +730,11 @@ $clock_font = isset($pwc_options['clock_font']) ? $pwc_options['clock_font'] : '
                 currentImageIndex = (currentImageIndex + 1) % images.length;
                 setBackgroundImage(currentImageIndex);
 
-                // Trigger background refresh when we've cycled through all images
-                // Fetch new images when reaching the last quarter of images
-                const refreshPoint = Math.floor(images.length * 0.75);
+                // Trigger background refresh when we've cycled through images
+                // Fetch new images when reaching 50% of images (earlier refresh)
+                const refreshPoint = Math.floor(images.length * 0.5);
                 if (currentImageIndex === refreshPoint && !useGradientFallback && !isFetchingNewImages) {
-                    console.log(`🔄 Reached 75% of images (${currentImageIndex}/${images.length}), fetching more...`);
+                    console.log(`🔄 Reached 50% of images (${currentImageIndex}/${images.length}), fetching more...`);
                     backgroundImageRefresh();
                 }
             }, SLIDE_INTERVAL);
