@@ -7,7 +7,7 @@ import { asyncHandler } from '../middleware/errorHandler.js';
  * GET /api/v1/images
  */
 export const getImages = asyncHandler(async (req, res) => {
-  const count = Math.min(parseInt(req.query.count) || 10, 30); // Max 30 images
+  const count = Math.min(parseInt(req.query.count) || 10, 100); // Max 100 images per request
 
   // Try to get images from pool first
   const poolResult = getRandomImagesFromPool(count);

@@ -6,20 +6,25 @@ const cache = new NodeCache({ stdTTL: config.cache.ttl });
 
 /**
  * Fetch random images from Unsplash API
+ * @param {number} count - Number of images to fetch
+ * @param {string} query - Search query
+ * @param {boolean} bypassCache - If true, skip cache and fetch fresh images
  */
-export async function fetchUnsplashImages(count = 10, query = 'nature,landscape') {
+export async function fetchUnsplashImages(count = 10, query = 'nature,landscape', bypassCache = false) {
   try {
     const cacheKey = `unsplash_${count}_${query}`;
 
-    // Check cache first
-    const cachedData = cache.get(cacheKey);
-    if (cachedData) {
-      console.log('✓ Returning cached Unsplash images');
-      return {
-        success: true,
-        data: cachedData,
-        cached: true
-      };
+    // Check cache first (unless bypassing)
+    if (!bypassCache) {
+      const cachedData = cache.get(cacheKey);
+      if (cachedData) {
+        console.log('✓ Returning cached Unsplash images');
+        return {
+          success: true,
+          data: cachedData,
+          cached: true
+        };
+      }
     }
 
     // Fetch from Unsplash API
@@ -59,10 +64,10 @@ export async function fetchUnsplashImages(count = 10, query = 'nature,landscape'
       height: photo.height
     }));
 
-    // Cache the results
+    // Cache the results (even if bypassed this time, cache for future non-bypass calls)
     cache.set(cacheKey, images);
 
-    console.log(`✓ Fetched ${images.length} images from Unsplash API`);
+    console.log(`✓ Fetched ${images.length} images from Unsplash API${bypassCache ? ' (cache bypassed)' : ''}`);
 
     return {
       success: true,

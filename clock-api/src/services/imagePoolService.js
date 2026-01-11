@@ -6,10 +6,10 @@ let lastFetchTime = null;
 let isFetching = false;
 
 const POOL_CONFIG = {
-  targetSize: 200,        // Target pool size
+  targetSize: 300,        // Increased from 200 to 300
   fetchBatchSize: 30,     // Fetch 30 images per batch (Unsplash limit)
-  minPoolSize: 50,        // Minimum pool size before refetch
-  maxPoolSize: 250        // Maximum pool size
+  minPoolSize: 100,       // Increased from 50 to 100
+  maxPoolSize: 400        // Increased from 250 to 400
 };
 
 /**
@@ -32,7 +32,8 @@ export async function refreshImagePool(query = 'nature,landscape') {
     for (let i = 0; i < batchCount; i++) {
       console.log(`Fetching batch ${i + 1}/${batchCount}...`);
 
-      const result = await fetchUnsplashImages(POOL_CONFIG.fetchBatchSize, query);
+      // BYPASS CACHE to get fresh images on every refresh
+      const result = await fetchUnsplashImages(POOL_CONFIG.fetchBatchSize, query, true);
 
       if (result.success && result.data) {
         newImages.push(...result.data);
@@ -47,25 +48,33 @@ export async function refreshImagePool(query = 'nature,landscape') {
       }
     }
 
-    // Update pool (keep existing + add new, remove duplicates)
-    const existingIds = new Set(imagePool.map(img => img.id));
-    const uniqueNewImages = newImages.filter(img => !existingIds.has(img.id));
+    // Replace pool with fresh images on each refresh
+    // This ensures users see new images instead of the same ones forever
+    const newIds = new Set(newImages.map(img => img.id));
+    const uniqueNewImages = newImages.filter((img, index, self) =>
+      self.findIndex(i => i.id === img.id) === index
+    );
 
-    imagePool = [...imagePool, ...uniqueNewImages];
+    // Count how many are actually new vs what we had before
+    const previousIds = new Set(imagePool.map(img => img.id));
+    const trulyNewCount = uniqueNewImages.filter(img => !previousIds.has(img.id)).length;
 
-    // Trim pool if it exceeds max size (keep most recent)
+    // Replace the entire pool with fresh images
+    imagePool = uniqueNewImages;
+
+    // Trim pool if it exceeds max size
     if (imagePool.length > POOL_CONFIG.maxPoolSize) {
-      imagePool = imagePool.slice(-POOL_CONFIG.maxPoolSize);
+      imagePool = imagePool.slice(0, POOL_CONFIG.maxPoolSize);
     }
 
     lastFetchTime = new Date();
 
-    console.log(`✓ Image pool refreshed: ${imagePool.length} total images (${uniqueNewImages.length} new)`);
+    console.log(`✓ Image pool refreshed: ${imagePool.length} total images (${trulyNewCount} new, pool replaced)`);
 
     return {
       success: true,
       totalImages: imagePool.length,
-      newImages: uniqueNewImages.length,
+      newImages: trulyNewCount,
       lastFetchTime
     };
 
@@ -81,6 +90,18 @@ export async function refreshImagePool(query = 'nature,landscape') {
 }
 
 /**
+ * Fisher-Yates shuffle algorithm for proper randomization
+ */
+function fisherYatesShuffle(array) {
+  const shuffled = [...array];
+  for (let i = shuffled.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [shuffled[i], shuffled[j]] = [shuffled[j], shuffled[i]];
+  }
+  return shuffled;
+}
+
+/**
  * Get random images from the pool
  */
 export function getRandomImagesFromPool(count = 10) {
@@ -92,17 +113,17 @@ export function getRandomImagesFromPool(count = 10) {
     };
   }
 
-  // If pool is smaller than requested count, return all
+  // If pool is smaller than requested count, return all (shuffled)
   if (imagePool.length <= count) {
     return {
       success: true,
-      data: [...imagePool],
+      data: fisherYatesShuffle(imagePool),
       poolSize: imagePool.length
     };
   }
 
-  // Get random selection without duplicates
-  const shuffled = [...imagePool].sort(() => Math.random() - 0.5);
+  // Get random selection without duplicates using proper shuffle
+  const shuffled = fisherYatesShuffle(imagePool);
   const selected = shuffled.slice(0, count);
 
   return {
