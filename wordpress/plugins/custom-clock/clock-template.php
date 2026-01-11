@@ -62,38 +62,42 @@ $clock_font = isset($pwc_options['clock_font']) ? $pwc_options['clock_font'] : '
             background-position: center;
             background-repeat: no-repeat;
             opacity: 0;
-            transform: scale(1);
-            transition: opacity 2s ease-in-out, transform 15s ease-out;
+            transform: scale(1.1);
+            transition: opacity 1.5s ease-in-out;
         }
 
         .background-image.active {
             opacity: 1;
-            transform: scale(1.1);
         }
 
-        /* Alternative animation classes for variety */
+        /* Zoom in animation - smooth zoom over 15s */
+        @keyframes zoomIn {
+            0% { transform: scale(1); }
+            100% { transform: scale(1.15); }
+        }
+
         .background-image.zoom-in {
-            transform: scale(1);
+            animation: zoomIn 15s ease-in-out forwards;
         }
 
-        .background-image.zoom-in.active {
-            transform: scale(1.15);
+        /* Pan left animation - smooth slide left over 15s */
+        @keyframes panLeft {
+            0% { transform: scale(1.1) translateX(-50px); }
+            100% { transform: scale(1.1) translateX(50px); }
         }
 
         .background-image.pan-left {
-            transform: scale(1.1) translateX(0);
+            animation: panLeft 15s ease-in-out forwards;
         }
 
-        .background-image.pan-left.active {
-            transform: scale(1.1) translateX(-30px);
+        /* Pan right animation - smooth slide right over 15s */
+        @keyframes panRight {
+            0% { transform: scale(1.1) translateX(50px); }
+            100% { transform: scale(1.1) translateX(-50px); }
         }
 
         .background-image.pan-right {
-            transform: scale(1.1) translateX(0);
-        }
-
-        .background-image.pan-right.active {
-            transform: scale(1.1) translateX(30px);
+            animation: panRight 15s ease-in-out forwards;
         }
 
         .background-overlay {
@@ -216,11 +220,6 @@ $clock_font = isset($pwc_options['clock_font']) ? $pwc_options['clock_font'] : '
             align-items: center;
             justify-content: center;
             height: clamp(90px, 18vw, 220px);
-        }
-
-        /* Seconds separator with breathing effect */
-        .seconds-separator {
-            animation: breathe 1s ease-in-out infinite;
         }
 
         /* Date display */
@@ -487,6 +486,7 @@ $clock_font = isset($pwc_options['clock_font']) ? $pwc_options['clock_font'] : '
         let useGradientFallback = false; // Track if we should skip to gradients
         const animationTypes = ['zoom-in', 'pan-left', 'pan-right'];
         let isFetchingNewImages = false; // Prevent duplicate fetches
+        let isChangingBackground = false; // Prevent overlapping background changes
         const INITIAL_IMAGE_COUNT = 150; // Increased from 50 to 150
         const REFRESH_IMAGE_COUNT = 100; // Increased from 30 to 100
         const MAX_CACHED_IMAGES = 300; // Increased from 100 to 300
@@ -554,9 +554,9 @@ $clock_font = isset($pwc_options['clock_font']) ? $pwc_options['clock_font'] : '
                 }
             }
 
-            // Set first background on initial load
+            // Set first background on initial load (force update to replace gradient)
             if (isInitialLoad && images.length > 0) {
-                setBackgroundImage(0);
+                setBackgroundImage(0, true);
             }
         }
 
@@ -572,20 +572,22 @@ $clock_font = isset($pwc_options['clock_font']) ? $pwc_options['clock_font'] : '
             isFetchingNewImages = false;
         }
 
-        // Fallback images - using beautiful gradients (instant loading, no external dependencies)
+        // Fallback images - using Material Design colors gradient (instant loading, no external dependencies)
         function useFallbackImages() {
-            // Beautiful gradient backgrounds that load instantly
+            // Material Design color gradients
             const gradients = [
-                'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
-                'linear-gradient(135deg, #f093fb 0%, #f5576c 100%)',
-                'linear-gradient(135deg, #4facfe 0%, #00f2fe 100%)',
-                'linear-gradient(135deg, #43e97b 0%, #38f9d7 100%)',
-                'linear-gradient(135deg, #fa709a 0%, #fee140 100%)',
-                'linear-gradient(135deg, #30cfd0 0%, #330867 100%)',
-                'linear-gradient(135deg, #a8edea 0%, #fed6e3 100%)',
-                'linear-gradient(135deg, #ff9a9e 0%, #fecfef 100%)',
-                'linear-gradient(135deg, #ffecd2 0%, #fcb69f 100%)',
-                'linear-gradient(135deg, #ff6e7f 0%, #bfe9ff 100%)'
+                'linear-gradient(135deg, #E57373 0%, #81C784 100%)',
+                'linear-gradient(135deg, #64B5F6 0%, #FFB74D 100%)',
+                'linear-gradient(135deg, #9575CD 0%, #4DB6AC 100%)',
+                'linear-gradient(135deg, #F06292 0%, #FFD54F 100%)',
+                'linear-gradient(135deg, #E57373 0%, #64B5F6 100%)',
+                'linear-gradient(135deg, #81C784 0%, #FFB74D 100%)',
+                'linear-gradient(135deg, #9575CD 0%, #F06292 100%)',
+                'linear-gradient(135deg, #4DB6AC 0%, #FFD54F 100%)',
+                'linear-gradient(135deg, #616161 0%, #000000 100%)',
+                'linear-gradient(135deg, #E57373 0%, #F06292 100%)',
+                'linear-gradient(135deg, #81C784 0%, #4DB6AC 100%)',
+                'linear-gradient(135deg, #64B5F6 0%, #9575CD 100%)'
             ];
             images = gradients.map((gradient, index) => ({
                 url: gradient,
@@ -594,6 +596,9 @@ $clock_font = isset($pwc_options['clock_font']) ? $pwc_options['clock_font'] : '
                 photographerUrl: 'https://saidim.com',
                 isGradient: true
             }));
+
+            // Immediately set first gradient as background
+            setBackgroundImage(0);
         }
 
         // Track image view
@@ -619,9 +624,10 @@ $clock_font = isset($pwc_options['clock_font']) ? $pwc_options['clock_font'] : '
         }
 
         // Set background image with random animation effect
-        function setBackgroundImage(index) {
-            if (images.length === 0) return;
+        function setBackgroundImage(index, force = false) {
+            if (images.length === 0 || (isChangingBackground && !force)) return;
 
+            isChangingBackground = true;
             const bg1 = document.getElementById('bg1');
             const bg2 = document.getElementById('bg2');
             const activeEl = document.querySelector('.background-image.active');
@@ -630,17 +636,20 @@ $clock_font = isset($pwc_options['clock_font']) ? $pwc_options['clock_font'] : '
             const image = images[index];
             currentImage = image; // Track current image
 
-            // Remove all animation classes from inactive element
-            animationTypes.forEach(type => inactiveEl.classList.remove(type));
-
-            // Add random animation type
-            const randomAnimation = animationTypes[Math.floor(Math.random() * animationTypes.length)];
-            inactiveEl.classList.add(randomAnimation);
-
             // Check if it's a gradient (instant) or image URL (needs preloading)
             if (image.isGradient) {
                 // Gradients load instantly, no preloading needed
                 inactiveEl.style.backgroundImage = image.url;
+
+                // First remove old animation classes
+                animationTypes.forEach(type => inactiveEl.classList.remove(type));
+
+                // Force reflow to restart animation
+                void inactiveEl.offsetWidth;
+
+                // Add new random animation type
+                const randomAnimation = animationTypes[Math.floor(Math.random() * animationTypes.length)];
+                inactiveEl.classList.add(randomAnimation);
 
                 // Fade transition
                 setTimeout(() => {
@@ -649,6 +658,9 @@ $clock_font = isset($pwc_options['clock_font']) ? $pwc_options['clock_font'] : '
 
                     // Track view when background becomes visible
                     trackImageView(image);
+
+                    // Allow next background change
+                    isChangingBackground = false;
                 }, 100);
 
                 // Update photo credit
@@ -665,7 +677,17 @@ $clock_font = isset($pwc_options['clock_font']) ? $pwc_options['clock_font'] : '
                 // Preload image before setting it
                 const img = new Image();
                 img.onload = () => {
-                    // Set background image only after it's loaded
+                    // First remove old animation classes
+                    animationTypes.forEach(type => inactiveEl.classList.remove(type));
+
+                    // Force reflow to restart animation
+                    void inactiveEl.offsetWidth;
+
+                    // Add new random animation type
+                    const randomAnimation = animationTypes[Math.floor(Math.random() * animationTypes.length)];
+                    inactiveEl.classList.add(randomAnimation);
+
+                    // Set background image after animation class is applied
                     inactiveEl.style.backgroundImage = `url('${image.url}')`;
 
                     // Fade transition
@@ -675,6 +697,9 @@ $clock_font = isset($pwc_options['clock_font']) ? $pwc_options['clock_font'] : '
 
                         // Track view when image becomes visible
                         trackImageView(image);
+
+                        // Allow next background change after transition starts
+                        isChangingBackground = false;
                     }, 100);
 
                     // Update photo credit with UTM parameters
@@ -715,6 +740,8 @@ $clock_font = isset($pwc_options['clock_font']) ? $pwc_options['clock_font'] : '
                     // Fallback: use gradients instead
                     console.log('Switching to gradient fallback...');
                     useFallbackImages();
+                    // Allow next background change before recursive call
+                    isChangingBackground = false;
                     if (images.length > 0) {
                         setBackgroundImage(0);
                     }
@@ -1026,6 +1053,11 @@ $clock_font = isset($pwc_options['clock_font']) ? $pwc_options['clock_font'] : '
         // Initialize
         updateClock();
         setInterval(updateClock, 1000);
+
+        // Immediately show gradient background before API loads
+        useFallbackImages();
+
+        // Fetch images asynchronously (will replace gradients if successful)
         fetchUnsplashImages();
         startSlideshow();
 
